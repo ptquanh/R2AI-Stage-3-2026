@@ -19,6 +19,7 @@ Dưới đây là phân tích chi tiết và đề xuất bổ sung:
 - **Cho Tiếng Anh:**
   - **PubMedQA / BioASQ:** Chứa hàng chục ngàn cặp câu hỏi - câu trả lời kèm context chuẩn y khoa. Rất tốt để benchmark thuật toán Reranking.
   - **MedQA (USMLE):** Dữ liệu từ đề thi bác sĩ Mỹ, tốt cho reasoning.
+  - **PubMed / NCBI E-utilities (Dữ liệu cũ BTC đề xuất):** Ở phiên bản thể lệ cũ, BTC gợi ý dùng NCBI Entrez E-utilities, Europe PMC API, PubTator API để lấy tài liệu PubMed. Dù luật mới quy định PubMed không được dùng để tính điểm đánh giá (chỉ chấm link trong `links_corpus.parquet`), chúng ta vẫn CÓ THỂ dùng script `pubmed_client.py` để kéo data về làm dữ liệu huấn luyện (Training Data) nhằm tăng khả năng hiểu Medical Ontology tiếng Anh, sau đó ánh xạ (cross-lingual) về tiếng Việt.
 - **Cho Tiếng Việt:**
   - **ViHealthQA** hoặc **ViMedQA:** Các bộ dữ liệu QA y tế tiếng Việt mã nguồn mở. Mặc dù văn phong có thể hướng tới người dùng phổ thông, nhưng nó giúp mô hình làm quen với từ vựng y tế tiếng Việt.
 - **Cho Tiếng Trung:**
