@@ -3,8 +3,6 @@ data/raw/*
 data/processed/*
 data/indices/*
 !data/**/.gitkeep
-*.csv
-*.json
 *.jsonl
 *.xml
 *.pkl
@@ -37,3 +35,8 @@ venv.bak/
 .vscode/
 *.swp
 *.swo
+
+# Allow dev set
+!data/dev_set/
+!data/dev_set/*.csv
+!data/dev_set/*.json

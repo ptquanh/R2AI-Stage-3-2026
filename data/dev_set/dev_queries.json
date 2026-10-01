@@ -1,0 +1,202 @@
+[
+  {
+    "id": 1,
+    "query": "Mình bị chàm mạn tính, sau khi da đã hết vảy rồi bác sĩ có nên tiếp tục dùng thuốc để ngăn tái phát không?"
+  },
+  {
+    "id": 2,
+    "query": "Mình muốn biết, nếu muốn giảm nguy cơ động mạch tay bị xơ cứng, nên ăn ít đường và bánh ngọt như thế nào cho hợp lý?"
+  },
+  {
+    "id": 3,
+    "query": "Em nghe nói nhiều người bị viêm gan siêu vi không được chẩn đoán và điều trị, mình nên làm gì để kiểm tra và có cơ hội được chữa khỏi nếu phát hiện sớm không ạ?"
+  },
+  {
+    "id": 4,
+    "query": "Em thấy có nốt sừng ở hậu môn, muốn biết nên dùng thuốc nào hoặc có cần phẫu thuật không ạ?"
+  },
+  {
+    "id": 5,
+    "query": "Bác sĩ ơi, mình nghe nói phụ nữ dễ bị sỏi thận và gây sưng thận, thì có nên uống nước nhiều hơn để phòng tránh không ạ?"
+  },
+  {
+    "id": 6,
+    "query": "Em đang bị ngứa âm đạo và hơi đau khi đi tiểu, bác sĩ kê thuốc metronidazole dạng bọt uống theo lịch 4 ngày một lần, mình có nên tiếp tục dùng cho đến khi hết hoàn toàn các triệu chứng không hay chỉ dùng đúng thời gian trên thuốc?"
+  },
+  {
+    "id": 7,
+    "query": "Em đã dùng thuốc hạ huyết áp rồi, nhưng hôm nay huyết áp đột ngột giảm xuống khoảng 55/85, mình nên làm gì và có cần đi khám ngay không?"
+  },
+  {
+    "id": 8,
+    "query": "Mình có nên cạo lông ở vùng kín rồi mới bôi thuốc mỡ để trị nấm không?"
+  },
+  {
+    "id": 9,
+    "query": "Mẹ tôi thường quên tên người thân, bác sĩ có nên làm xét nghiệm máu và siêu não để kiểm tra có phải là sa sút trí tuệ không?"
+  },
+  {
+    "id": 10,
+    "query": "Em hay bị đau bụng kinh và khó ngủ, uống trà ngải cứu có giúp mình cải thiện được không?"
+  },
+  {
+    "id": 11,
+    "query": "Em bị ngứa và phát ban ở da tay, mình có nên dùng thuốc mỡ bôi hay cần đi khám da liễu không?"
+  },
+  {
+    "id": 12,
+    "query": "Bé nhà em thường bị tiêu chảy mấy ngày, có thể do vi khuẩn gây ra không và nguyên nhân chính là gì?"
+  },
+  {
+    "id": 13,
+    "query": "Em 30 tuổi da bị lỗ chân lông to và da khô, mình nên dùng loại serum nào để cải thiện đồng thời giảm nếp nhăn và thâm quầng?"
+  },
+  {
+    "id": 14,
+    "query": "Mình đang mang thai rồi, bị đau lưng ở cuối thai kỳ, có cách nào dùng thảo dược hoặc ăn cháo gì giúp giảm đau mà an toàn cho bé không?"
+  },
+  {
+    "id": 15,
+    "query": "Em hút thuốc nhiều năm, vừa được chẩn đoán bệnh phổi liên quan tới bronchiolitis, liệu có cần dùng thuốc corticoid hay chỉ ngừng hút thuốc là đủ không?"
+  },
+  {
+    "id": 16,
+    "query": "Công ty mình có bắt buộc phải tổ chức khám sức khỏe định kỳ cho nhân viên không ạ?"
+  },
+  {
+    "id": 17,
+    "query": "Em đang bị kinh không đều và bụng lạnh, nghe nói có thuốc tên là Pei Kun Wan, có thực sự giúp cải thiện các triệu chứng này không ạ?"
+  },
+  {
+    "id": 18,
+    "query": "Em có nên lo lắng khi phát hiện mình có một bướu nang ở buồng trứng trái, đường kính khoảng 2 cm không ạ?"
+  },
+  {
+    "id": 19,
+    "query": "Con tôi sinh non, 2 tuổi cao 80 cm, nên dùng loại hormone tăng trưởng nào tốt hơn, KimSai hay AnSuMeng?"
+  },
+  {
+    "id": 20,
+    "query": "Bác sĩ ơi, mình nghe nói đa u tủy xương là bệnh nguy hiểm, nếu mình có các dấu hiệu như đau xương và mệt mỏi, có nên khám sớm không ạ?"
+  },
+  {
+    "id": 21,
+    "query": "Bác sĩ ơi, mình muốn hỏi thuốc Mercola (Rituximab) dùng để trị lymphoma có tác dụng như thế nào và chi phí khoảng bao nhiêu?"
+  },
+  {
+    "id": 22,
+    "query": "Mình bị ngứa da và xuất hiện vết bì nề trên tay, có phải là chứng bệnh thần kinh da không và cần dùng thuốc gì để giảm triệu chứng?"
+  },
+  {
+    "id": 23,
+    "query": "Mình sống ở vùng cao, gần đây tim cảm thấy nặng và thở khó, có phải là bệnh tim cao nguyên không và nên làm gì để tránh bệnh nặng hơn?"
+  },
+  {
+    "id": 24,
+    "query": "Mình nghe nói dùng thuốc thần kinh nhung có thể gây tê liệt giống bù gì, nếu con mình vừa dùng thuốc này mà xuất hiện yếu chân, có phải là hội chứng Guillain‑Barré không?"
+  },
+  {
+    "id": 25,
+    "query": "Bé nhà tôi khoảng 7 tháng, giờ cứ ngồi mà lắc lưng, có cần đặt gối sau lưng để tránh ngã không?"
+  },
+  {
+    "id": 26,
+    "query": "Bé nhà tôi vừa bị ho có đờm xanh, mình nên dùng thuốc kháng sinh hay chờ qua tự nhiên?"
+  },
+  {
+    "id": 27,
+    "query": "Mình muốn bắt đầu thử tắm nước lạnh để tăng sức đề kháng, nhưng có nên lo lắng về huyết áp cao không ạ?"
+  },
+  {
+    "id": 28,
+    "query": "Em bị nghẹt mũi kéo dài, có nên châm huyệt trên 迎香 để giảm không?"
+  },
+  {
+    "id": 29,
+    "query": "Mẹ tôi muốn biết ở Hải Nam có bệnh viện đông y nào gần thành phố Đầm Sơn không?"
+  },
+  {
+    "id": 30,
+    "query": "Em vừa sinh con 2 tháng rồi, thấy mình có cảm giác như tử cung bị tụt xuống, có phải là tử cung sa không và nên làm gì để cải thiện?"
+  },
+  {
+    "id": 31,
+    "query": "Em muốn làm răng sứ implant, bác sĩ có thể tư vấn bệnh viện nào uy tín và chi phí khoảng bao nhiêu không?"
+  },
+  {
+    "id": 32,
+    "query": "Em của mình mới 4 tuổi, gần đây bé thường mệt mỏi, ăn ít, cân giảm, có thể là thiếu thyroid không ạ?"
+  },
+  {
+    "id": 33,
+    "query": "Em vừa thấy mình có dịch âm đạo màu xanh và ngứa, có phải bị viêm âm đạo hỗn hợp không ạ?"
+  },
+  {
+    "id": 34,
+    "query": "Mẹ mình da bị thâm nám, mình dùng mặt nạ đào với chanh có thực sự giúp da trắng sáng hơn không?"
+  },
+  {
+    "id": 35,
+    "query": "Mình đang có bụng bị rạn da sau khi tăng cân nhanh, có cách nào dùng dầu ô liu hoặc kem vitamin E để giảm chúng không?"
+  },
+  {
+    "id": 36,
+    "query": "Em sắp đi phẫu thuật cắt một phần đại tràng, bác sĩ có bắt buộc phải để ống dạ dày không, và có thể đặt ống sau khi đã gây mê để tránh căng thẳng không?"
+  },
+  {
+    "id": 37,
+    "query": "Em vừa bị nôn mửa nhiều ngày và thấy mình hơi yếu, mình có thể bị hạ kali máu không và cần làm gì để khắc phục?"
+  },
+  {
+    "id": 38,
+    "query": "Em nghe nói nhiều bệnh nhân COVID-19 sợ phải dùng máy thở, liệu có cách nào tránh việc phải lên máy mà vẫn được cứu sống không?"
+  },
+  {
+    "id": 39,
+    "query": "Vitamin E dạng tiêu chuẩn dùng để kiểm tra thuốc nếu bị hỏng sẽ thay đổi như thế nào và bị ảnh hưởng bởi những yếu tố nào ạ?"
+  },
+  {
+    "id": 40,
+    "query": "Bé nhà em tay trái móng ngón giữa lõm sâu suốt hơn một năm mà không mọc lại, có phải bệnh gì không ạ?"
+  },
+  {
+    "id": 41,
+    "query": "Bé nhà mình gần đây không muốn ăn, chỉ ngồi nhìn mà không ăn, có phải do ăn quá nhiều đồ ngọt, béo và cần làm gì để cải thiện không?"
+  },
+  {
+    "id": 42,
+    "query": "Mình đang mang 25 tuần, có nên ăn nhiều hạt óc chó, hạt dẻ để giúp bé phát triển não không ạ?"
+  },
+  {
+    "id": 43,
+    "query": "Bé nhà mình vừa mới phẫu thuật, để lại một vết sẹo to, có cách nào giảm hoặc làm mờ nó không ạ?"
+  },
+  {
+    "id": 44,
+    "query": "Bé nhà tôi bị tim to, có phải do ống dẫn động mạch chưa đóng không?"
+  },
+  {
+    "id": 45,
+    "query": "Em vừa bị đau cổ tay sau khi tập thể dục, có nên dùng thuốc Yunnan Baiyao để giảm sưng và đau không?"
+  },
+  {
+    "id": 46,
+    "query": "Bé nhà mình bị sưng thận, có phải bệnh này di truyền không ạ?"
+  },
+  {
+    "id": 47,
+    "query": "Bác sĩ ơi, nếu mình bị viêm gan B dạng ba láng và không điều trị, mình có thể sống bao lâu được không?"
+  },
+  {
+    "id": 48,
+    "query": "Em đang chuẩn bị phẫu thuật mắt, bác sĩ nói sẽ dùng gây mê tĩnh mạch, mình có cần phải chọc ống thở như khi dùng mê toàn thân không ạ?"
+  },
+  {
+    "id": 49,
+    "query": "Em vừa bị đốt bởi một con ong trên áo, không thấy đầu kim mà chỉ đau và sưng, mình nên dùng gì để giảm đau và xử lý nhanh nhất?"
+  },
+  {
+    "id": 50,
+    "query": "Bác sĩ ơi, mình bị đau râm mông khi ngồi lâu, có nên để bệnh tự khỏi hay cần đi khám điều trị ngay không?"
+  }
+]

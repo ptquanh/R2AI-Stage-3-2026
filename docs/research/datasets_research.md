@@ -33,3 +33,21 @@ Thay vì chỉ đi tìm dataset ngoài (có thể khác văn phong của BTC), c
 - **Bước 1:** Sau khi crawl xong danh sách URL tiếng Việt/Trung của BTC.
 - **Bước 2:** Dùng một LLM (ví dụ `Qwen3-14B`) đọc từng đoạn văn bản và tự sinh ra các câu hỏi (Synthetic Queries).
 - **Bước 3:** Sử dụng cặp _(Câu hỏi sinh ra - Đoạn văn gốc)_ làm tập Training cực chuẩn để Fine-tune Reranker hoặc làm bộ Benchmark nội bộ.
+
+## 4. Dữ liệu Thu hẹp khoảng cách từ vựng (Query Reformulation Datasets)
+
+Để xử lý nghịch lý giữa văn phong hỏi bệnh của bệnh nhân và từ vựng của tạp chí khoa học (như đã phân tích ở phần CHIR), việc tìm hoặc tạo các bộ dataset "Dịch câu hỏi người bệnh sang thuật ngữ y khoa" là cực kỳ cần thiết.
+
+**Tình hình Dataset hiện có:**
+
+- **Tiếng Anh:** Đã có một số bộ dataset nổi tiếng như **HealthSearchQA** (thuộc MultiMedQA của Google - chứa 3,173 câu hỏi phổ thông), **CHQ-Sum** (Consumer Health Questions Summarization - 1,507 câu), và **GARD Dataset** (từ điển mapping thuật ngữ).
+- **Tiếng Trung:** Rất phong phú, điển hình là benchmark **CBLUE** (Chinese Biomedical Language Understanding Evaluation) chứa các task như **KUAKE-QQR** (Query-Query Relevance) và **CHIP-CDN** (Clinical Term Normalization) chuyên để chuẩn hóa ngôn ngữ tự nhiên sang mã ICD.
+- **Tiếng Việt:** **Hoàn toàn vắng bóng!** Hiện tại không có bất kỳ bộ dataset tiêu chuẩn (Gold Standard) nào dạng _(Câu hỏi đời thường -> Keyword Y khoa hàn lâm)_ cho tiếng Việt mã nguồn mở.
+
+**Chiến lược bứt phá - "Tự tạo và Open Source":**
+Bởi vì không có sẵn dữ liệu tiếng Việt, đây chính là **khoảng trống vàng** để chúng ta tạo ra bộ dataset riêng và thậm chí Public (Open-source) nó lên Hugging Face.
+
+- **Cách làm:** Chúng ta sẽ crawl các cặp Hỏi - Đáp từ các trang tư vấn y khoa (như Vinmec, AloBacsi), dùng GPT-4o / Qwen3 trích xuất "Câu hỏi gốc của bệnh nhân" (Layperson Query) và "Từ khóa/Chẩn đoán của bác sĩ" (Professional Term).
+- **Lợi ích:**
+  1. Dùng bộ dữ liệu này để Fine-tune (SFT) hoặc Few-shot Prompting cho các mô hình chuyên làm nhiệm vụ **Query Rewriter**. Dù tốc độ (latency) không phải là yếu tố sống còn của cuộc thi, việc Fine-tune sẽ giúp mô hình "bắt bài" chính xác văn phong y tế Việt Nam và chuẩn hóa thuật ngữ (Ontology) nhất quán, chuẩn xác hơn rất nhiều so với dùng LLM Zero-shot chung chung.
+  2. Nếu hệ thống của ta có module "Dịch thuật câu hỏi" này, điểm Recall của ta sẽ vượt trội hoàn toàn so với các team khác chỉ biết cắm đầu dùng BM25/Vector Search truyền thống.

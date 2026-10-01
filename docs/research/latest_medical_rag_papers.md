@@ -54,4 +54,24 @@ Trong lĩnh vực Y tế, tính chính xác và nguồn gốc của thông tin (
 
 ---
 
-**TỔNG KẾT:** Các nghiên cứu mới nhất năm 2025-2026 hoàn toàn củng cố cho proposal áp dụng _Ontology_ và _Multi-stage RAG_. Đặc biệt, chúng ta cần lưu tâm việc tinh chỉnh Logit (để tránh Language Drift) và Metadata Filtering (để cải thiện điểm yếu của Multilingual Embedding).
+## 5. Thu hẹp khoảng cách từ vựng (Bridging the Vocabulary Gap) trong Consumer Health Information Retrieval (CHIR)
+
+**Vấn đề:**
+Có một "khoảng cách ngữ nghĩa" (semantic gap) khổng lồ giữa **ngôn ngữ người bệnh (Layperson/Consumer Health Terminology)** và **văn bản y khoa học thuật (Professional Medical Literature)**. Người bệnh mô tả "nổi lằn máu đỏ tím", trong khi tài liệu y khoa viết "suy giãn tĩnh mạch chi dưới". Nếu dùng Vector Search trực tiếp, kết quả sẽ trượt hoàn toàn.
+
+**Giải pháp từ các nghiên cứu NLP mới nhất:**
+
+1. **HyDE (Hypothetical Document Embeddings):**
+   - _Cách hoạt động:_ Thay vì encode câu hỏi của người dùng, hệ thống yêu cầu LLM "Hãy viết một đoạn văn chuyên gia trả lời cho câu hỏi này". Sau đó, hệ thống dùng chính đoạn văn ảo (pseudo-document) đó để đi search Vector.
+   - _Ưu điểm:_ Đoạn văn do LLM sinh ra tự nhiên sẽ chứa các thuật ngữ y khoa hàn lâm (Academic vocabulary), giúp nó "khớp" (match) hoàn hảo với các bài báo khoa học trong Corpus.
+
+2. **Mô hình Rewrite-Retrieve-Read:**
+   - _Cách hoạt động:_ Dùng LLM đóng vai trò như một "Bác sĩ phiên dịch". Prompt LLM: _"Trích xuất triệu chứng và dịch câu hỏi sau sang các từ khóa y khoa chuyên ngành"_.
+   - _Ưu điểm:_ Biến câu hỏi rườm rà của bệnh nhân thành chuỗi keyword tối ưu cho cả BM25 và Vector Search. Điển hình là việc map về hệ thống từ điển chuẩn (Consumer Health Vocabularies - CHV) như UMLS hoặc SNOMED-CT.
+
+3. **Medical Entity Recognition (NER) & Normalization:**
+   - Sử dụng các mô hình học sâu nhỏ (như BioBERT, PhoBERT) để nhận diện thực thể bệnh lý (Disease), triệu chứng (Symptom), thuốc (Drug) trong câu hỏi, sau đó chuẩn hóa (Normalize) chúng thành danh pháp y học trước khi truy vấn.
+
+---
+
+**TỔNG KẾT:** Các nghiên cứu mới nhất hoàn toàn củng cố cho proposal áp dụng _Ontology_, _Multi-stage RAG_, và đặc biệt là bắt buộc phải có **LLM Query Rewriting / HyDE** để vượt qua khoảng cách từ vựng (Vocabulary Gap). Chúng ta cần lưu tâm việc tinh chỉnh Logit (để tránh Language Drift) và Metadata Filtering (để cải thiện điểm yếu của Multilingual Embedding).
