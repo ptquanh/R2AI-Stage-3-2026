@@ -20,7 +20,10 @@ Một chunk_text được tính là relevant nếu chứa nội dung tương ứ
 - Precision = `Số chunk relevant / Tổng số chunk được truy hồi`
 - Recall = `Số phần thông tin cần thiết được bao phủ / Tổng số phần thông tin cần thiết`
 
-Độ dài mỗi chunk_text được khuyến nghị không quá khoảng 1.024 tokens.
+**LƯU Ý QUAN TRỌNG VỀ ĐỘ DÀI VÀ NỘI DUNG CHUNK:**
+
+- BTC đã định nghĩa sẵn các "phần thông tin quan trọng / câu chốt" (ground truth). Để được tính là relevant, chunk nộp lên chỉ cần **có chứa nội dung tương ứng hoặc overlap đủ** với phần thông tin này.
+- **BẪY CHẤM ĐIỂM (AUTO-GRADER):** Mặc dù luật ghi là "khuyến nghị", nhưng để tránh việc các đội lách luật bằng cách nộp toàn bộ tài liệu thành 1 chunk khổng lồ, độ dài mỗi `chunk_text` **tuyệt đối không nên dài quá 1.024 tokens**. Nếu vượt quá ngưỡng này, hệ thống chấm điểm tự động có thể gạch bỏ chunk đó để trừng phạt hành vi nhét bừa dữ liệu.
 
 ### 2.3 Độ đo F2 macro
 

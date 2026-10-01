@@ -20,6 +20,9 @@ Các tài liệu tổng hợp và đúc kết kinh nghiệm để xây dựng ch
 
 - `top_teams_research_report.md`: Báo cáo phân tích kỹ thuật, pipeline và mã nguồn từ các đội đạt giải cao ở Stage 1 & 2.
 - `models_research.md`: Danh sách phân loại và đánh giá các LLM <= 15B phù hợp để triển khai cho dự án.
+- `latest_medical_rag_papers.md`: Báo cáo đúc kết từ các nghiên cứu/papers mới nhất (2025-2026) về Multilingual Medical RAG.
+- `datasets_research.md`: Phân tích và đánh giá các nguồn dữ liệu, chiến lược Fine-tune và tạo Synthetic Data.
+- `../experiments_log.md`: Nhật ký lưu trữ các kết quả thử nghiệm và benchmark điểm số (F2-Macro, Precision, Recall).
 
 ### 3. Kiến trúc Hệ thống (`architecture/`)
 

@@ -20,3 +20,10 @@
 - Người tham gia được phép lập đội.
 - Bạn không được tham gia nhiều hơn một đội. Mỗi thành viên trong đội phải là một cá nhân riêng biệt vận hành một tài khoản riêng.
 - Chỉ một tài khoản cho mỗi đội được phê duyệt để nộp kết quả.
+
+## Quy định về Mô hình (Models) & Tham số (Parameters)
+
+- **Giới hạn 15B tính độc lập:** Các mô hình LLM (như Generator, Reranker) được sử dụng phải có tổng số tham số (total parameters) **<= 15B**. Đáng chú ý, giới hạn này áp dụng **CHO TỪNG MODEL RIÊNG LẺ**, không tính theo tổng số tham số của toàn bộ các model cộng lại trong pipeline.
+- **Mốc thời gian phát hành:** Tất cả các mô hình base/foundation model phải được công bố/phát hành **trước ngày 01/08/2026**. (Quy định ban đầu là 01/06/2026, đã được điều chỉnh lùi lại).
+- **Quy định về Fine-tuning:** Các đội hoàn toàn được phép Fine-tune (Huấn luyện tinh chỉnh) mô hình. Tuy nhiên, nếu Fine-tune sau ngày 01/08/2026, thí sinh **bắt buộc phải lưu checkpoint ở chế độ Private (Riêng tư)** hoặc lưu cục bộ (Local) để tránh vi phạm quy định cấm sử dụng model public sau mốc thời gian quy định.
+- **Lịch trình phát hành:** Danh sách nguồn dữ liệu và bộ câu hỏi chính thức sẽ được BTC cung cấp vào ngày **01/10/2026**.
