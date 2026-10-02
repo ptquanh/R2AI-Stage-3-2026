@@ -164,7 +164,7 @@ class SemanticEmbeddingChunker(BaseChunker):
     Chunker tách theo khoảng cách ngữ nghĩa thực sự (Dùng Embedding Model).
     Nhóm các câu liên tiếp có độ tương đồng Cosine cao lại với nhau.
     """
-    def __init__(self, model_name: str = "Qwen/Qwen3-Embedding-8B", threshold: float = 0.5, **kwargs):
+    def __init__(self, model_name: str = "Qwen/Qwen3-Embedding-8B", threshold: float = 0.5, embedding_model=None, **kwargs):
         super().__init__(**kwargs)
         try:
             from sentence_transformers import SentenceTransformer
@@ -174,7 +174,7 @@ class SemanticEmbeddingChunker(BaseChunker):
             raise ImportError("Vui lòng cài đặt: pip install sentence-transformers scikit-learn")
             
         self.threshold = threshold
-        self.model = SentenceTransformer(model_name)
+        self.model = embedding_model if embedding_model else SentenceTransformer(model_name)
 
     def chunk_document(self, doc_id: str, text: str, url: str = "") -> List[Dict[str, Any]]:
         if not text:
