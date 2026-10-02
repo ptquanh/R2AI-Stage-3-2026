@@ -175,6 +175,8 @@ class SemanticEmbeddingChunker(BaseChunker):
             
         self.threshold = threshold
         self.model = embedding_model if embedding_model else SentenceTransformer(model_name)
+        # Bắt buộc giới hạn token để chống tràn RAM khi văn bản quá dài
+        self.model.max_seq_length = 512
 
     def chunk_document(self, doc_id: str, text: str, url: str = "") -> List[Dict[str, Any]]:
         if not text:
@@ -193,7 +195,8 @@ class SemanticEmbeddingChunker(BaseChunker):
                 'token_count': self.count_words(text)
             }]
 
-        embeddings = self.model.encode(sentences)
+        safe_sentences = [str(s)[:2000] for s in sentences]
+        embeddings = self.model.encode(safe_sentences, batch_size=8)
 
         similarities = []
         for i in range(len(embeddings) - 1):

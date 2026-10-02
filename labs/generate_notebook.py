@@ -16,7 +16,7 @@ Mỗi kịch bản sẽ được đánh giá trên 3 loại Search: **Sparse (BM
 
 nb.cells.append(nbf.v4.new_code_cell("""\
 # Cài đặt các thư viện cần thiết (Chạy cell này đầu tiên)
-!pip install -q pyvi rank_bm25 sentence-transformers pandas pyarrow scikit-learn
+!pip install -q pyvi rank_bm25 sentence-transformers pandas pyarrow scikit-learn accelerate bitsandbytes
 """))
 
 nb.cells.append(nbf.v4.new_code_cell("""\
@@ -111,10 +111,18 @@ nb.cells.append(nbf.v4.new_markdown_cell("## Hàm Chạy Đánh giá (Sparse, Se
 nb.cells.append(nbf.v4.new_code_cell("""\
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+import torch
+
+from transformers import BitsAndBytesConfig
+
+# Cấu hình lượng tử hóa 4-bit để ép model 8B xuống còn 4GB VRAM!
+quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16)
 
 # Load Embedding Model dùng chung cho việc đánh giá (Search)
-print("Đang tải model Embedding cho Semantic Search...")
-eval_model = SentenceTransformer('Qwen/Qwen3-Embedding-8B')
+print("Đang tải model Embedding cho Semantic Search (4-bit quantization)...")
+eval_model = SentenceTransformer('Qwen/Qwen3-Embedding-8B', model_kwargs={"quantization_config": quantization_config})
+# Bắt buộc giới hạn độ dài token để tránh Attention Matrix phình to gây OOM (Cực kỳ quan trọng với các model Context dài như Qwen)
+eval_model.max_seq_length = 512
 
 def tokenize(text):
     return ViTokenizer.tokenize(str(text).lower()).split()
@@ -130,8 +138,9 @@ def evaluate_retrieval(chunks_df, name=""):
     
     # --- 2. SETUP SEMANTIC (DENSE) ---
     print(f"[Semantic] Đang tạo Embeddings cho {len(chunks_df)} chunks...")
-    # Tính embedding cho toàn bộ chunks (có thể lâu nên chia batch_size lớn trên GPU)
-    corpus_embeddings = eval_model.encode(chunks_df['content'].tolist(), batch_size=32, show_progress_bar=True)
+    # Ép buộc cắt ngắn string để chặn đứng OOM do tokenizer của Qwen3 không tôn trọng max_seq_length
+    safe_texts = [str(text)[:2000] for text in chunks_df['content']]
+    corpus_embeddings = eval_model.encode(safe_texts, batch_size=8, show_progress_bar=True)
     
     # Biến đếm kết quả
     bm25_r5, bm25_r10 = 0, 0
