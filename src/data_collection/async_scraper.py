@@ -7,6 +7,7 @@ import os
 import argparse
 import logging
 import sys
+import multiprocessing
 
 # Cấu hình logging
 logging.basicConfig(
@@ -102,7 +103,7 @@ async def fetch_and_extract(session, url, row_id, sem):
         except Exception as e:
             return {'id': row_id, 'url': url, 'text': None, 'status': 'error', 'layer': 'network', 'reason': f'Error: {str(e)[:50]}'}
 
-async def process_batch(df_batch, batch_index, output_dir, dropped_csv_path):
+async def process_batch(df_batch, batch_index, output_dir):
     """Xử lý một lô (batch) URLs và lưu ra file"""
     out_file = os.path.join(output_dir, f"corpus_part_{batch_index:05d}.parquet")
     
@@ -140,16 +141,22 @@ async def process_batch(df_batch, batch_index, output_dir, dropped_csv_path):
         # Vẫn tạo file parquet rỗng để đánh dấu là batch này đã chạy
         pd.DataFrame(columns=['id', 'url', 'text']).to_parquet(out_file, engine='pyarrow')
 
-    # 2. Ghi nối (Append) các file bị loại vào CSV tổng
+    # 2. Ghi nối (Append) các file bị loại vào Parquet riêng rẽ để tránh đụng độ tiến trình
     if dropped_records:
         df_dropped = pd.DataFrame(dropped_records)
-        write_header = not os.path.exists(dropped_csv_path)
-        df_dropped.to_csv(dropped_csv_path, mode='a', index=False, header=write_header, encoding='utf-8')
-        logger.info(f"Batch {batch_index}: Đã ghi {len(df_dropped)} URLs bị loại vào {dropped_csv_path}")
+        if 'dropped_at_layer' in df_dropped.columns:
+            df_dropped['dropped_at_layer'] = df_dropped['dropped_at_layer'].astype(str)
+        dropped_out_file = os.path.join(output_dir, f"dropped_urls_part_{batch_index:05d}.parquet")
+        df_dropped.to_parquet(dropped_out_file, engine='pyarrow')
+        logger.info(f"Batch {batch_index}: Đã ghi {len(df_dropped)} URLs bị loại vào {dropped_out_file}")
 
-async def main(input_file, output_dir, batch_size=10000, start_batch=0, max_batches=None):
+def run_batch_sync(args):
+    """Hàm bọc đồng bộ để chạy asyncio.run trong từng process riêng biệt"""
+    df_batch, batch_index, output_dir = args
+    asyncio.run(process_batch(df_batch, batch_index, output_dir))
+
+def main(input_file, output_dir, batch_size=10000, start_batch=0, max_batches=None, num_workers=None, specific_batches=None):
     os.makedirs(output_dir, exist_ok=True)
-    dropped_csv_path = os.path.join(output_dir, "dropped_urls.csv")
     
     logger.info(f"Đang đọc file gốc: {input_file}")
     df = pd.read_parquet(input_file)
@@ -158,17 +165,28 @@ async def main(input_file, output_dir, batch_size=10000, start_batch=0, max_batc
     
     logger.info(f"Tổng số URL: {total_records}. Chia thành {total_batches} batches (kích thước {batch_size})")
     
-    end_batch = total_batches
-    if max_batches:
-        end_batch = min(start_batch + max_batches, total_batches)
+    tasks = []
+    if specific_batches is not None:
+        batch_list = specific_batches
+    else:
+        end_batch = total_batches
+        if max_batches:
+            end_batch = min(start_batch + max_batches, total_batches)
+        batch_list = range(start_batch, end_batch)
         
-    for i in range(start_batch, end_batch):
+    for i in batch_list:
+        if i >= total_batches:
+            continue
         start_idx = i * batch_size
         end_idx = min(start_idx + batch_size, total_records)
         df_batch = df.iloc[start_idx:end_idx]
+        tasks.append((df_batch, i, output_dir))
         
-        logger.info(f"Đang bắt đầu xử lý Batch {i} (Index {start_idx} đến {end_idx})")
-        await process_batch(df_batch, i, output_dir, dropped_csv_path)
+    num_workers = num_workers or max(1, multiprocessing.cpu_count() - 1)
+    logger.info(f"Bắt đầu cào dữ liệu đa tiến trình với {num_workers} workers...")
+    
+    with multiprocessing.Pool(processes=num_workers) as pool:
+        pool.map(run_batch_sync, tasks)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Async Web Scraper cho 4.4 Triệu URLs có tích hợp Lọc Phễu")
@@ -177,7 +195,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=10000, help="Số lượng URL mỗi batch")
     parser.add_argument("--start-batch", type=int, default=0, help="Batch bắt đầu")
     parser.add_argument("--max-batches", type=int, default=None, help="Số lượng batch tối đa sẽ chạy")
+    parser.add_argument("--workers", type=int, default=None, help="Số lượng tiến trình song song (mặc định: CPU-1)")
     
     args = parser.parse_args()
     
-    asyncio.run(main(args.input, args.output, args.batch_size, args.start_batch, args.max_batches))
+    main(args.input, args.output, args.batch_size, args.start_batch, args.max_batches, args.workers)

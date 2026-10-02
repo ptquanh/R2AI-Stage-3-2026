@@ -15,25 +15,38 @@ Các đội thi cần xây dựng hệ thống AI có khả năng:
 1. **Truy hồi chính xác ở cấp tài liệu**
    - Xác định đúng các tài liệu liên quan đến truy vấn từ các nguồn dữ liệu y sinh đa ngôn ngữ.
    - Thực hiện truy hồi xuyên ngôn ngữ giữa tiếng Việt, tiếng Anh và tiếng Trung thay vì chỉ dựa trên so khớp từ khoá.
-2. **Truy hồi chính xác đoạn nội dung liên quan**
+2. **Truy hồi chính xác ở cấp đoạn nội dung**
    - Xác định được các đoạn nội dung thực sự chứa thông tin y khoa liên quan đến truy vấn.
    - Cách phân đoạn tài liệu và tổ chức các đơn vị truy hồi do từng đội tự thiết kế.
 3. **Hiểu truy vấn y khoa bằng tiếng Việt**
    - Hiểu ngôn ngữ tự nhiên tiếng Việt về các thuật ngữ, khái niệm y khoa và lâm sàng.
    - Xử lý được truy vấn chứa nhiều thông tin khác nhau trong cùng một câu hỏi.
 
+---
+
 ## Các mốc thời gian quan trọng
 
 - **01 tháng 10, 2026**: Phát hành tập kiểm thử công khai (public test)
 - **31 tháng 10, 2026**: Hạn chót nộp bài cho tập kiểm thử công khai
 - **01 tháng 11, 2026**: Giai đoạn kiểm thử riêng (private test)
-- **04 tháng 11, 2026**: Hạn chót nộp hệ thống
+- **04 tháng 11, 2026**: Hạn chót nộp hệ thống (Mã nguồn & Quy trình tái lập)
 - **11 tháng 11, 2026**: Công bố kết quả chung cuộc
 
-_Lưu ý: Tất cả các hạn chót đều là 23:59 theo giờ Việt Nam (UTC+07:00)._
+> ⚠️ _Lưu ý: Tất cả các hạn chót đều là **23:59 theo giờ Việt Nam (UTC+07:00)**._
+
+---
 
 ## Quy định về dữ liệu bên ngoài và mô hình ngôn ngữ huấn luyện trước (PLMs)
 
+### 1. Dữ liệu bên ngoài (External Data)
+
 Để đảm bảo sự công bằng trong cuộc thi, người tham gia phải cung cấp nguồn dữ liệu. Người tham gia được phép sử dụng dữ liệu từ các nguồn bên ngoài, tuy nhiên phải trích dẫn rõ ràng và cung cấp đầy đủ thông tin về nguồn gốc dữ liệu để Ban tổ chức có thể kiểm tra, xác minh khi cần thiết.
 
-Người tham gia có thể sử dụng các mô hình ngôn ngữ huấn luyện trước và các LLM có dữ liệu huấn luyện và/hoặc mô hình được công khai (ví dụ: Hugging Face hoặc các trang tương tự), nhưng không được sử dụng các LLM có mô hình đóng (ví dụ: GPT-4o, Gemini, ...). Ngoài ra, người tham gia chỉ được sử dụng các mô hình được phát hành trước ngày 1 tháng 8 năm 2026 (giờ Việt Nam) có kích thước nhỏ hơn hoặc bằng 15B.
+### 2. Mô hình Ngôn ngữ & Giới hạn Kỹ thuật (Hard Constraints)
+
+Người tham gia có thể sử dụng các mô hình ngôn ngữ huấn luyện trước và các LLM có dữ liệu huấn luyện và/hoặc mô hình được công khai (ví dụ: Hugging Face hoặc các trang tương tự), nhưng:
+
+- ❌ **CẤM HOÀN TOÀN mô hình đóng (Closed-source API):** Không được sử dụng các LLM như GPT-4o, Gemini, Claude... trong hệ thống nộp bài chính thức.
+- ✅ **Chỉ dùng mô hình Open-source:** Được phép dùng các mô hình công khai weights trên Hugging Face.
+- ⏱️ **Thời điểm phát hành (Cut-off date):** Mô hình phải được phát hành **trước ngày 01 tháng 8 năm 2026 (giờ Việt Nam)**.
+- ⚖️ **Kích thước mô hình (Size limit):** Kích thước mô hình phải **$\le 15\text{B}$ tham số** (ví dụ: Qwen-2.5-7B/14B, BGE-M3, Llama-3-8B đều hợp lệ; cấm các mô hình $\ge 70\text{B}$).

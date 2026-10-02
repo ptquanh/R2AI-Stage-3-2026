@@ -243,7 +243,7 @@ class Chunker:
     Factory / Strategy Pattern wrapper cho các Chunker.
     Giúp việc thay đổi thuật toán Chunking dễ dàng chỉ qua 1 tham số 'strategy'.
     """
-    def __init__(self, strategy: str = "contextual", max_tokens: int = 1024, token_overlap: int = 100):
+    def __init__(self, strategy: str = "contextual", max_tokens: int = 1024, token_overlap: int = 100, **kwargs):
         strategies = {
             "sentence": SentenceChunker,
             "contextual": ContextualChunker,
@@ -254,7 +254,7 @@ class Chunker:
         if strategy not in strategies:
             raise ValueError(f"Strategy {strategy} is not supported. Supported: {list(strategies.keys())}")
             
-        self.chunker = strategies[strategy](max_tokens=max_tokens, token_overlap=token_overlap)
+        self.chunker = strategies[strategy](max_tokens=max_tokens, token_overlap=token_overlap, **kwargs)
 
     def chunk_document(self, doc_id: str, text: str, url: str = "") -> List[Dict[str, Any]]:
         return self.chunker.chunk_document(doc_id, text, url)

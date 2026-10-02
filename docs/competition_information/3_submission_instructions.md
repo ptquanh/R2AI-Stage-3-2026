@@ -16,10 +16,10 @@ Thí sinh phải nộp file kết quả truy hồi ở định dạng `.json`. F
 [
   {
     "id": <integer>,
-    "relevant_docs": ["<id_tài_liệu>"],
+    "relevant_docs": [<id_tài_liệu_kiểu_số_nguyên>],
     "relevant_chunks": [
       {
-        "doc_id": "<id_tài_liệu>",
+        "doc_id": <id_tài_liệu_kiểu_số_nguyên>,
         "chunk_text": "<nội_dung_chunk>"
       }
     ]
@@ -31,9 +31,9 @@ Thí sinh phải nộp file kết quả truy hồi ở định dạng `.json`. F
 Trong đó:
 
 - `id`: Mã định danh của câu hỏi, kiểu số nguyên (integer).
-- `relevant_docs`: Danh sách mã định danh của các tài liệu được dự đoán là liên quan.
+- `relevant_docs`: Danh sách mã định danh của các tài liệu được dự đoán là liên quan (**Bắt buộc phải là mảng số nguyên `int`, không được dùng chuỗi `string`**).
 - `relevant_chunks`: Danh sách các đoạn nội dung được dự đoán là liên quan. Mỗi đoạn cần chỉ rõ tài liệu nguồn qua `doc_id` và nội dung của đoạn qua `chunk_text`.
-- `doc_id`: Mã định danh của tài liệu gốc chứa đoạn nội dung được truy hồi. Đối với tài liệu tiếng Việt và tiếng Trung, `doc_id` là mã id tương ứng trong tệp nguồn do Ban Tổ chức cung cấp. Đối với tài liệu tiếng Anh, nguồn dữ liệu sử dụng là PubMed và PMID được dùng làm `doc_id`.
+- `doc_id`: Mã định danh của tài liệu gốc chứa đoạn nội dung được truy hồi. Đối với tài liệu tiếng Việt và tiếng Trung, `doc_id` là mã id tương ứng trong tệp nguồn do Ban Tổ chức cung cấp (**Trong phiên bản đánh giá này, `doc_id` phải ép kiểu về số nguyên**). Đối với tài liệu tiếng Anh, nguồn dữ liệu sử dụng là PubMed và PMID được dùng làm `doc_id`.
 - `chunk_text`: Nội dung của đoạn văn bản được hệ thống truy hồi từ tài liệu tương ứng với `doc_id`. `chunk_text` phải là nội dung được trích xuất từ tài liệu gốc, không phải nội dung được viết lại hoặc sinh mới bởi hệ thống.
 
 **Ví dụ bài nộp:**
@@ -42,19 +42,19 @@ Trong đó:
 [
   {
     "id": 1,
-    "relevant_docs": ["doc_id1", "doc_id2"],
+    "relevant_docs": [510676, 540323],
     "relevant_chunks": [
       {
-        "doc_id": "doc_id1",
-        "chunk_text": "Đoạn nội dung liên quan thứ nhất được trích từ tài liệu doc_id1."
+        "doc_id": 510676,
+        "chunk_text": "Đoạn nội dung liên quan thứ nhất được trích từ tài liệu 510676."
       },
       {
-        "doc_id": "doc_id1",
-        "chunk_text": "Đoạn nội dung liên quan thứ hai được trích từ một vị trí khác trong tài liệu doc_id1."
+        "doc_id": 510676,
+        "chunk_text": "Đoạn nội dung liên quan thứ hai được trích từ một vị trí khác trong tài liệu 510676."
       },
       {
-        "doc_id": "doc_id2",
-        "chunk_text": "Đoạn nội dung liên quan được trích từ tài liệu doc_id2."
+        "doc_id": 540323,
+        "chunk_text": "Đoạn nội dung liên quan được trích từ tài liệu 540323."
       }
     ]
   }
