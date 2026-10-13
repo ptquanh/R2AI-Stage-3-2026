@@ -4,50 +4,89 @@ import glob
 import shutil
 from urllib.parse import urlparse
 import pandas as pd
+import pyarrow.parquet as pq
 
 sys.stdout.reconfigure(encoding='utf-8')
+
+def safe_to_parquet(df, path):
+    tmp_path = path + ".tmp"
+    df.to_parquet(tmp_path, index=False, engine='pyarrow')
+    meta = pq.read_metadata(tmp_path)
+    assert meta.num_rows == len(df), f"Lỗi: Số dòng {meta.num_rows} không khớp với {len(df)}!"
+    os.replace(tmp_path, path)
+
 
 def main():
     print("=" * 70)
     print("🚀 BẮT ĐẦU QUY TRÌNH PHÂN CHIA VÀ CẬP NHẬT URL RECOVERED")
     print("=" * 70)
 
-    # 1. Thu thập tất cả các file recovered
-    dir1 = "data/raw/corpus_text/recovered_remaining_urls/corpus_text_0_to_34_10"
-    dir2 = "data/raw/corpus_text/recovered_remaining_urls/corpus_text_35_to_62_10"
+    import argparse
+    parser = argparse.ArgumentParser(description="Append recovered URLs into tier files")
+    parser.add_argument("--dirs", nargs="+", default=["data/raw/corpus_text/local_recovered"], help="Input directories containing recovered parquets")
+    parser.add_argument("--no-clean", action="store_true", help="Do not delete local_recovered parquet files after processing")
+    args = parser.parse_args()
 
-    files1 = sorted(glob.glob(os.path.join(dir1, "*.parquet")))
-    files2 = sorted(glob.glob(os.path.join(dir2, "*.parquet")))
-    all_recovered_files = files1 + files2
+    # 1. Tìm tất cả các file trong local_recovered
+    all_recovered_files = []
+    for d in args.dirs:
+        found = sorted(glob.glob(os.path.join(d, "*.parquet")))
+        all_recovered_files.extend(found)
+        print(f"   - {d}: {len(found)} files")
 
-    print(f"\n1. Đã tìm thấy {len(all_recovered_files)} file parquet:")
-    print(f"   - {dir1}: {len(files1)} files")
-    print(f"   - {dir2}: {len(files2)} files")
+    if not all_recovered_files:
+        print("⚠️ Không tìm thấy file parquet nào trong thư mục recovered. Thoát.")
+        return
 
-    recovered_dfs = []
+    recovered_dfs_succ = []
+    recovered_dfs_drop = []
     for f in all_recovered_files:
-        df = pd.read_parquet(f)
-        succ = df[df['status'] == 'success']
+        try:
+            df = pd.read_parquet(f)
+        except Exception as e:
+            print(f"   ⚠️ Lỗi đọc file {f}: {e}")
+            continue
+
+        if 'status' not in df.columns:
+            continue
+
+        succ = df[df['status'] == 'success'].copy()
         if len(succ) > 0:
-            recovered_dfs.append(succ[['id', 'url', 'text']])
+            recovered_dfs_succ.append(succ[['id', 'url', 'text']])
+            
+        drop = df[df['status'] == 'dropped'].copy()
+        if len(drop) > 0:
+            if 'reason' not in drop.columns:
+                drop['reason'] = 'offtopic'
+            recovered_dfs_drop.append(drop[['id', 'url', 'reason']])
 
-    succ_all = pd.concat(recovered_dfs, ignore_index=True)
-    print(f"\n2. Tổng số URL success thu được: {len(succ_all)}")
+    succ_all = pd.concat(recovered_dfs_succ, ignore_index=True) if recovered_dfs_succ else pd.DataFrame(columns=['id', 'url', 'text'])
+    drop_all = pd.concat(recovered_dfs_drop, ignore_index=True) if recovered_dfs_drop else pd.DataFrame(columns=['id', 'url', 'reason'])
     
-    # Ép kiểu chuẩn
-    succ_all['id'] = succ_all['id'].astype('int64')
-    succ_all['url'] = succ_all['url'].astype('string')
-    succ_all['text'] = succ_all['text'].astype('string')
+    print(f"\n2. Tổng số URL success thu được: {len(succ_all)}")
+    print(f"   Tổng số URL dropped (rác) thu được: {len(drop_all)}")
+    
+    # Ép kiểu chuẩn và khử trùng lặp nội bộ
+    if len(succ_all) > 0:
+        succ_all['id'] = succ_all['id'].astype('int64')
+        succ_all['url'] = succ_all['url'].astype('string')
+        succ_all['text'] = succ_all['text'].astype('string')
+        init_succ = len(succ_all)
+        succ_all = succ_all.drop_duplicates(subset=['id']).drop_duplicates(subset=['url']).copy()
+        print(f"   - Sau khử trùng lặp nội bộ success: {len(succ_all)} URLs (đã loại {init_succ - len(succ_all)})")
+        
+    if len(drop_all) > 0:
+        # dropped_safe_offtopic_urls lưu id dạng str
+        drop_all['id'] = drop_all['id'].astype(str)
+        drop_all['url'] = drop_all['url'].astype(str)
+        drop_all['reason'] = drop_all['reason'].astype(str)
+        init_drop = len(drop_all)
+        drop_all = drop_all.drop_duplicates(subset=['id']).drop_duplicates(subset=['url']).copy()
+        print(f"   - Sau khử trùng lặp nội bộ dropped: {len(drop_all)} URLs (đã loại {init_drop - len(drop_all)})")
 
-    # Loại bỏ trùng lặp nội bộ nếu có
-    init_count = len(succ_all)
-    succ_all = succ_all.drop_duplicates(subset=['id']).drop_duplicates(subset=['url'])
-    print(f"   - Sau khi kiểm tra trùng lặp nội bộ: {len(succ_all)} URLs (đã loại {init_count - len(succ_all)})")
-
-    # 3. Phân chia theo Domain / Host
+    # 3. Phân chia theo Domain / Host cho các URL success
     def get_tier(url_str):
         host = urlparse(str(url_str)).netloc.lower()
-        # Tier 1 hosts
         tier1_hosts = [
             'tiemchunglongchau.com.vn', 'youmed.vn', 'ask.39.net', '120ask.com',
             'suckhoedoisong.vn', 'suckhoecongdongonline.vn', 'jb39.com',
@@ -55,7 +94,6 @@ def main():
             'youlai.cn', 'tamanhhospital.vn', 'thaythuocvietnam.vn', 'bachmai.gov.vn',
             'benhviennhitrunguong.gov.vn', 'benhvienvietduc.org', 'pharmacity.vn'
         ]
-        # Tier 2 hosts
         tier2_hosts = [
             'cancer.39.net', 'cnkang.com', 'a-hospital.com', 'zhongyibaodian.net',
             'zydcd.com', 'qihuangzhishu.com', 'msdmanuals.cn', 'care.39.net',
@@ -71,100 +109,161 @@ def main():
                 return 'tier_2'
         return 'tier_other'
 
-    succ_all['target_tier'] = succ_all['url'].apply(get_tier)
-    print("\n3. Phân bố các URL success theo tier:")
-    print(succ_all['target_tier'].value_counts().to_string())
+    # Đọc nhanh ID và URL của tier_1 để tránh trùng lặp vào bất kỳ tier nào
+    t1_ids = set()
+    t1_urls = set()
+    t1_path = 'data/raw/final_corpus_text/tier_1.parquet'
+    if os.path.exists(t1_path):
+        t1_df = pd.read_parquet(t1_path, columns=['id', 'url'])
+        t1_ids = set(t1_df['id'].tolist())
+        t1_urls = set(t1_df['url'].tolist())
 
-    tier_files = {
-        'tier_1_resume': 'data/raw/final_corpus_text/tier_1_resume.parquet',
-        'tier_2': 'data/raw/final_corpus_text/tier_2.parquet',
-        'tier_other': 'data/raw/final_corpus_text/tier_other.parquet',
-    }
-    rem_path = 'data/raw/final_corpus_text/remaining_urls.parquet'
+    # 4. Cập nhật từng file Tier cho URL success
+    if len(succ_all) > 0:
+        succ_all['target_tier'] = succ_all['url'].apply(get_tier)
+        print("\n3. Phân bố các URL success theo tier:")
+        print(succ_all['target_tier'].value_counts().to_string())
 
-    # Tạo thư mục / file backup an toàn
-    print("\n4. Đang tạo bản sao lưu an toàn (backup)...")
-    for t_name, t_path in tier_files.items():
-        bak_path = t_path + ".bak"
-        shutil.copy2(t_path, bak_path)
-        print(f"   - Sao lưu {t_path} -> {bak_path}")
-    rem_bak = rem_path + ".bak"
-    shutil.copy2(rem_path, rem_bak)
-    print(f"   - Sao lưu {rem_path} -> {rem_bak}")
+        tier_files = {
+            'tier_1_resume': 'data/raw/final_corpus_text/tier_1_resume.parquet',
+            'tier_2': 'data/raw/final_corpus_text/tier_2.parquet',
+            'tier_other': 'data/raw/final_corpus_text/tier_other.parquet',
+        }
 
-    # 4. Cập nhật từng file Tier
-    print("\n5. Tiến hành bổ sung vào cuối các file Tier (không reset index):")
-    all_added_urls = set()
-    all_added_ids = set()
+        print("\n4. Tiến hành bổ sung vào các file Tier (an toàn không ghi đè):")
+        for t_name, t_path in tier_files.items():
+            candidates = succ_all[succ_all['target_tier'] == t_name][['id', 'url', 'text']].copy()
+            if len(candidates) == 0:
+                print(f"   >>> Bỏ qua {t_name} ({t_path}): Không có URL nào thuộc tier này.")
+                continue
 
-    for t_name, t_path in tier_files.items():
-        df_target = pd.read_parquet(t_path)
-        init_len = len(df_target)
+            bak_path = t_path + ".bak"
+            if os.path.exists(t_path):
+                shutil.copy2(t_path, bak_path)
+                df_target = pd.read_parquet(t_path)
+            else:
+                df_target = pd.DataFrame(columns=['id', 'url', 'text'])
 
-        # Lọc các items cho tier này
-        items_to_add = succ_all[succ_all['target_tier'] == t_name][['id', 'url', 'text']].copy()
+            existing_ids = set(df_target['id'].tolist())
+            existing_urls = set(df_target['url'].tolist())
 
-        # Kiểm tra trùng lặp với data sẵn có trong target file
-        existing_ids = set(df_target['id'].tolist())
-        existing_urls = set(df_target['url'].tolist())
+            # Luôn kiểm tra chống trùng với tier_1
+            existing_ids.update(t1_ids)
+            existing_urls.update(t1_urls)
 
-        items_to_add = items_to_add[
-            ~items_to_add['id'].isin(existing_ids) &
-            ~items_to_add['url'].isin(existing_urls)
-        ]
+            items_to_add = candidates[
+                ~candidates['id'].isin(existing_ids) &
+                ~candidates['url'].isin(existing_urls)
+            ].copy()
 
-        num_new = len(items_to_add)
-        print(f"\n   >>> Xử lý {t_name} ({t_path}):")
-        print(f"       - Số dòng hiện tại: {init_len}")
-        print(f"       - Số dòng mới cần thêm: {num_new}")
+            num_new = len(items_to_add)
+            if num_new > 0:
+                updated_df = pd.concat([df_target, items_to_add], ignore_index=True)
+                # Đảm bảo dtypes
+                updated_df['id'] = updated_df['id'].astype('int64')
+                updated_df['url'] = updated_df['url'].astype('string')
+                updated_df['text'] = updated_df['text'].astype('string')
+                safe_to_parquet(updated_df, t_path)
+                print(f"   >>> Xử lý {t_name} ({t_path}): Đã thêm {num_new} URLs mới (tổng {len(updated_df)})")
+            else:
+                print(f"   >>> Xử lý {t_name} ({t_path}): Tất cả {len(candidates)} ứng viên đã tồn tại trước đó.")
 
-        if num_new > 0:
-            # Gán index tiếp nối liên tục từ init_len đến init_len + num_new - 1
-            # Đảm bảo index của df_target ban đầu hoàn toàn nguyên vẹn
-            items_to_add.index = range(init_len, init_len + num_new)
+    # 4b. Xử lý dropped URLs
+    if len(drop_all) > 0:
+        print("\n4b. Xử lý các URL dropped (lưu vào dropped_safe_offtopic_urls.parquet)...")
+        drop_path = 'data/raw/final_corpus_text/dropped_safe_offtopic_urls.parquet'
+        if os.path.exists(drop_path):
+            shutil.copy2(drop_path, drop_path + ".bak")
+            df_existing_drop = pd.read_parquet(drop_path)
+            df_existing_drop['id'] = df_existing_drop['id'].astype(str)
+            df_existing_drop['url'] = df_existing_drop['url'].astype(str)
+            if 'reason' not in df_existing_drop.columns:
+                df_existing_drop['reason'] = 'offtopic'
+            df_existing_drop['reason'] = df_existing_drop['reason'].astype(str)
             
-            # Nối vào cuối
-            updated_df = pd.concat([df_target, items_to_add])
+            existing_drop_ids = set(df_existing_drop['id'].tolist())
+            existing_drop_urls = set(df_existing_drop['url'].tolist())
             
-            # Kiểm tra tính toàn vẹn
-            assert len(updated_df) == init_len + num_new, "Lỗi: Kích thước sau khi nối không khớp!"
-            assert updated_df.index.equals(pd.RangeIndex(len(updated_df))), "Lỗi: Index không liên tục!"
-            assert updated_df.iloc[:init_len]['id'].equals(df_target['id']), "Lỗi: Dữ liệu ban đầu bị thay đổi!"
-
-            # Lưu lại file parquet
-            updated_df.to_parquet(t_path, index=False, engine='pyarrow')
-            print(f"       - Đã lưu thành công! Số dòng mới: {len(updated_df)}")
-
-            all_added_urls.update(items_to_add['url'].tolist())
-            all_added_ids.update(items_to_add['id'].tolist())
+            drop_to_add = drop_all[
+                ~drop_all['id'].isin(existing_drop_ids) &
+                ~drop_all['url'].isin(existing_drop_urls)
+            ].copy()
+            
+            if len(drop_to_add) > 0:
+                df_updated_drop = pd.concat([df_existing_drop, drop_to_add], ignore_index=True)
+                df_updated_drop['id'] = df_updated_drop['id'].astype(str)
+                df_updated_drop['url'] = df_updated_drop['url'].astype(str)
+                df_updated_drop['reason'] = df_updated_drop['reason'].astype(str)
+                safe_to_parquet(df_updated_drop, drop_path)
+                print(f"   - Đã thêm {len(drop_to_add)} URLs vào file dropped (tổng {len(df_updated_drop)})")
+            else:
+                print(f"   - Tất cả {len(drop_all)} URLs dropped đã tồn tại trong file dropped.")
         else:
-            print("       - Không có dòng mới cần thêm.")
+            safe_to_parquet(drop_all, drop_path)
+            print(f"   - Đã tạo mới file dropped với {len(drop_all)} URLs")
 
-    # 5. Xóa các URL đó trong remaining_urls.parquet
-    print("\n6. Đang xóa các URL đã thêm khỏi remaining_urls.parquet...")
-    df_rem = pd.read_parquet(rem_path)
-    rem_init_len = len(df_rem)
-    print(f"   - Số lượng remaining_urls ban đầu: {rem_init_len}")
+    # 5. Xóa các URL đó trong remaining_urls files
+    print("\n5. Đang xóa các URL đã xử lý (success + dropped) khỏi các file remaining_urls...")
+    rem_files = [
+        'data/raw/final_corpus_text/remaining_urls.parquet',
+        'data/raw/final_corpus_text/remaining_urls_fast.parquet',
+        'data/raw/final_corpus_text/remaining_urls_selenium.parquet'
+    ]
+    
+    # Tập hợp tất cả các URL và ID cần loại bỏ (cả success lẫn dropped và tier_1)
+    urls_to_remove = set()
+    ids_to_remove = set()
+    if len(succ_all) > 0:
+        urls_to_remove.update(succ_all['url'].astype(str).tolist())
+        ids_to_remove.update(succ_all['id'].astype(str).tolist())
+    if len(drop_all) > 0:
+        urls_to_remove.update(drop_all['url'].astype(str).tolist())
+        ids_to_remove.update(drop_all['id'].astype(str).tolist())
 
-    # Lọc bỏ các URL và ID đã thêm
-    df_rem_filtered = df_rem[
-        ~df_rem['url'].isin(all_added_urls) &
-        ~df_rem['id'].astype(str).isin([str(i) for i in all_added_ids])
-    ].copy()
+    # Thêm cả các URL/ID đã có trong tier_1 để dọn sạch hàng đợi triệt để
+    urls_to_remove.update(str(u) for u in t1_urls)
+    ids_to_remove.update(str(i) for i in t1_ids)
 
-    rem_final_len = len(df_rem_filtered)
-    num_deleted = rem_init_len - rem_final_len
-    print(f"   - Số lượng đã xóa: {num_deleted}")
-    print(f"   - Số lượng remaining_urls còn lại: {rem_final_len}")
+    print(f"   - Tổng số URLs trong danh sách loại trừ: {len(urls_to_remove)} (từ {len(ids_to_remove)} IDs)")
 
-    # Lưu lại remaining_urls (giữ nguyên không thêm index column thừa)
-    df_rem_filtered.to_parquet(rem_path, index=False, engine='pyarrow')
-    print("   - Đã lưu cập nhật remaining_urls.parquet thành công!")
+    for rem_path in rem_files:
+        if os.path.exists(rem_path):
+            shutil.copy2(rem_path, rem_path + ".bak")
+            df_rem = pd.read_parquet(rem_path)
+            rem_init_len = len(df_rem)
+            
+            rem_urls = df_rem['url'].astype(str)
+            rem_ids = df_rem['id'].astype(str)
+            
+            mask_keep = (~rem_urls.isin(urls_to_remove)) & (~rem_ids.isin(ids_to_remove))
+            df_rem_filtered = df_rem[mask_keep].copy()
+            
+            rem_final_len = len(df_rem_filtered)
+            num_deleted = rem_init_len - rem_final_len
+            
+            if num_deleted > 0:
+                safe_to_parquet(df_rem_filtered, rem_path)
+                print(f"   - {rem_path}: Đã xóa {num_deleted} URLs (từ {rem_init_len} -> còn {rem_final_len})")
+            else:
+                print(f"   - {rem_path}: Không có URL nào cần xóa (giữ nguyên {rem_init_len}).")
+
+    # 6. Dọn dẹp thư mục local_recovered
+    if not args.no_clean:
+        print("\n6. Dọn dẹp các file recovered đã xử lý trong local_recovered...")
+        deleted_count = 0
+        for f in all_recovered_files:
+            try:
+                os.remove(f)
+                deleted_count += 1
+            except Exception as e:
+                print(f"   ⚠️ Lỗi xóa file {f}: {e}")
+        print(f"   - Đã xóa thành công {deleted_count}/{len(all_recovered_files)} files trong local_recovered.")
+    else:
+        print("\n6. Bỏ qua bước xóa file local_recovered (--no-clean được bật).")
 
     print("\n" + "=" * 70)
     print("🎉 HOÀN TẤT TOÀN BỘ QUY TRÌNH!")
-    print(f"   - Đã phân chia: {len(all_added_urls)} URLs thành công vào 3 file tier")
-    print(f"   - Đã xóa chính xác {num_deleted} URLs khỏi remaining_urls.parquet")
+    print(f"   - Đã xử lý: {len(succ_all)} URLs success và {len(drop_all)} URLs dropped.")
     print("=" * 70)
 
 if __name__ == "__main__":

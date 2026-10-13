@@ -16,3 +16,9 @@ rank_bm25
 sentence-transformers
 curl_cffi
 nest_asyncio
+selenium
+webdriver-manager
+psutil
+FlagEmbedding>=1.4.0
+accelerate>=0.28.0
+scipy>=1.10.0
