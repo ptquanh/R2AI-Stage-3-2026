@@ -48,6 +48,8 @@ def parse_args(args=None):
                         help="Constant k for Reciprocal Rank Fusion: 1 / (k + rank) (default: 60)")
     parser.add_argument("--zh_weight", type=float, default=1.0,
                         help="Scaling factor for translated Chinese lexical tokens (default: 1.0)")
+    parser.add_argument("--en_weight", type=float, default=0.5,
+                        help="Scaling factor for translated English lexical tokens (default: 0.5)")
     parser.add_argument("--cand_pool", type=int, default=150,
                         help="Number of candidates to retain per shard per modality (default: 150)")
     parser.add_argument("--cand_buffer", type=int, default=400,
@@ -83,6 +85,10 @@ def parse_args(args=None):
     parser.add_argument("--index_base", type=str,
                         default="data/indices/new_dataset" if os.path.exists("data/indices/new_dataset/index/chunks") else "data/indices",
                         help="Base directory containing search index shards (default: data/indices/new_dataset if available)")
+    parser.add_argument("--no_faiss", action="store_true",
+                        help="Disable FAISS and force fallback to standard shard-by-shard search")
+    parser.add_argument("--no_multilingual", action="store_true",
+                        help="Disable multilingual translation auto-merge and search strictly in native query text")
     return parser.parse_args(args)
 
 
@@ -167,11 +173,25 @@ def main():
     valid_doc_ids = None if args.no_filter_btc else index_repo.load_valid_doc_ids(args.btc_links_file)
 
     query_encoder = BGEM3QueryEncoder()
-    searcher = VectorSearcher(
-        index_repository=index_repo,
-        cand_pool=args.cand_pool,
-        cand_buffer=args.cand_buffer
-    )
+
+    faiss_cand_dir = os.path.join(args.index_base, "index") if os.path.exists(os.path.join(args.index_base, "index", "faiss_index_flat_ip.bin")) else args.index_base
+    faiss_bin_path = os.path.join(faiss_cand_dir, "faiss_index_flat_ip.bin")
+
+    if os.path.exists(faiss_bin_path) and not args.no_faiss:
+        logger.info(f"⚡ FAISS index detected at {faiss_bin_path}! Activating FAISSSearcher (Memory-Mapped)...")
+        from src.retrieval.faiss_searcher import FAISSSearcher
+        searcher = FAISSSearcher(
+            index_dir=faiss_cand_dir,
+            cand_pool=args.cand_pool,
+            cand_buffer=args.cand_buffer
+        )
+    else:
+        logger.info("Using standard VectorSearcher (shard-by-shard scan)...")
+        searcher = VectorSearcher(
+            index_repository=index_repo,
+            cand_pool=args.cand_pool,
+            cand_buffer=args.cand_buffer
+        )
     exporter = SubmissionExporter()
 
     reranker = None
@@ -190,7 +210,7 @@ def main():
     )
 
     # 2. Load Queries
-    queries = pipeline.load_queries(query_path)
+    queries = pipeline.load_queries(query_path, enable_multilingual=not args.no_multilingual)
 
     # 3. Execute Pipeline
     pipeline.execute(
@@ -199,6 +219,7 @@ def main():
         mode=mode,
         fusion_type=fusion,
         zh_weight=args.zh_weight,
+        en_weight=args.en_weight,
         rrf_k=args.rrf_k,
         top_docs=args.top_docs,
         top_chunks=args.top_chunks,

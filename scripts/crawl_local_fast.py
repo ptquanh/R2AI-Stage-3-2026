@@ -11,9 +11,11 @@ import itertools
 import threading
 import re
 import json
+import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 import pandas as pd
 import trafilatura
+from lxml import html as lxml_html
 from tqdm.asyncio import tqdm
 from curl_cffi import requests
 import concurrent.futures
@@ -25,7 +27,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 # ======================================================================
 URL_BLACKLIST = [
     "/rao-vat/", "/san-pham/", "/gio-hang/", "/mua-ban/", "/cart/",
-    "/checkout/", "/shop/", "/store/", "shopee", "lazada", "tiki"
+    "/checkout/", "/shop/", "/store/"
 ]
 
 MEDICAL_KEYWORDS = [
@@ -38,6 +40,200 @@ MEDICAL_KEYWORDS = [
     "medical", "patient", "hospital", "pharmacy", "syndrome", "infection", "therapy"
 ]
 
+# Some publishers expose valid short briefs or use markup that Trafilatura
+# does not recognize. These domains are accepted once a real content node is
+# found, even when the cleaned article is shorter than the global threshold.
+DOMAIN_MIN_TEXT_LENGTH = {
+    "laodong.vn": 10,
+    "baotayninh.vn": 10,
+}
+
+DOMAIN_CONTENT_XPATHS = {
+    "laodong.vn": [
+        "//article[contains(concat(' ', normalize-space(@class), ' '), ' article-detail ')]",
+        "//div[contains(concat(' ', normalize-space(@class), ' '), ' blk-c2-01 ')]",
+    ],
+    "baotayninh.vn": [
+        "//*[@id='content-detail']",
+        "//div[contains(concat(' ', normalize-space(@class), ' '), ' content-article ')]",
+    ],
+    "benhviennhitrunguong.gov.vn": [
+        "//*[contains(concat(' ', normalize-space(@class), ' '), ' entry-content ')]",
+    ],
+    "bachmai.gov.vn": [
+        "//*[contains(concat(' ', normalize-space(@class), ' '), ' post-detail__content ')]",
+        "//*[contains(concat(' ', normalize-space(@class), ' '), ' post-content ')]",
+    ],
+    "youmed.vn": [
+        "//*[contains(concat(' ', normalize-space(@class), ' '), ' article-content ')]",
+    ],
+}
+
+
+def _domain_matches(domain: str, expected: str) -> bool:
+    normalized = domain.lower().split(":", 1)[0].removeprefix("www.")
+    return normalized == expected or normalized.endswith("." + expected)
+
+
+def min_text_length_for_domain(domain: str, default: int = 50) -> int:
+    for expected, minimum in DOMAIN_MIN_TEXT_LENGTH.items():
+        if _domain_matches(domain, expected):
+            return minimum
+    return default
+
+
+def _normalize_extracted_text(value: str) -> str:
+    lines = [re.sub(r"\s+", " ", line).strip() for line in str(value or "").splitlines()]
+    return "\n".join(line for line in lines if line).strip()
+
+
+def _europe_pmc_metadata_text(item: dict) -> str:
+    """Build source-faithful searchable text from Europe PMC metadata."""
+    pieces = []
+    for value in (item.get("title"), item.get("abstractText"), item.get("authorString")):
+        if value:
+            pieces.append(str(value))
+
+    journal = item.get("journalInfo") or {}
+    journal_meta = journal.get("journal") or {}
+    journal_bits = [
+        journal_meta.get("title"),
+        journal.get("dateOfPublication"),
+        item.get("pageInfo"),
+        f"DOI: {item['doi']}" if item.get("doi") else None,
+    ]
+    journal_line = "; ".join(str(value) for value in journal_bits if value)
+    if journal_line:
+        pieces.append(journal_line)
+
+    mesh = item.get("meshHeadingList") or {}
+    descriptors = [
+        heading.get("descriptorName")
+        for heading in mesh.get("meshHeading", [])
+        if isinstance(heading, dict) and heading.get("descriptorName")
+    ]
+    if descriptors:
+        pieces.append("MeSH: " + "; ".join(dict.fromkeys(descriptors)))
+    return _normalize_extracted_text("\n".join(pieces))
+
+
+def _europe_pmc_full_text(item: dict) -> str:
+    """Fetch article body when a PubMed record has no abstract but has a PMCID."""
+    pmcid = item.get("pmcid")
+    if not pmcid:
+        return ""
+    try:
+        response = requests.get(
+            f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML",
+            timeout=20,
+        )
+        if response.status_code != 200:
+            return ""
+        root = ET.fromstring(response.content)
+        body = root.find(".//body")
+        if body is None:
+            return ""
+        body_text = _normalize_extracted_text(" ".join(body.itertext()))
+        title = _normalize_extracted_text(item.get("title") or "")
+        return _normalize_extracted_text("\n".join(value for value in (title, body_text) if value))
+    except Exception:
+        return ""
+
+
+def extract_text_with_fallback(html: str, domain: str) -> str:
+    """Extract article text with deterministic domain-aware HTML fallbacks."""
+    primary = _normalize_extracted_text(
+        trafilatura.extract(html, include_links=False, include_images=False) or ""
+    )
+
+    try:
+        tree = lxml_html.fromstring(html)
+
+        # Prefer articleBody from structured data when publishers expose it.
+        structured_candidates = []
+        for node in tree.xpath("//script[@type='application/ld+json']/text()"):
+            try:
+                payload = json.loads(node)
+            except Exception:
+                continue
+            stack = payload if isinstance(payload, list) else [payload]
+            while stack:
+                item = stack.pop()
+                if isinstance(item, dict):
+                    body = item.get("articleBody")
+                    if body:
+                        structured_candidates.append(_normalize_extracted_text(body))
+                    stack.extend(item.values())
+                elif isinstance(item, list):
+                    stack.extend(item)
+
+        # Remove script/style noise before selector-based text_content().
+        for noisy in tree.xpath("//script|//style|//noscript|//svg|//form"):
+            parent = noisy.getparent()
+            if parent is not None:
+                parent.remove(noisy)
+
+        selector_candidates = []
+        for expected, xpaths in DOMAIN_CONTENT_XPATHS.items():
+            if not _domain_matches(domain, expected):
+                continue
+            for xpath in xpaths:
+                for element in tree.xpath(xpath):
+                    text = _normalize_extracted_text(element.text_content())
+                    if text:
+                        selector_candidates.append(text)
+            break
+
+        if not selector_candidates:
+            for element in tree.xpath("//article|//main"):
+                text = _normalize_extracted_text(element.text_content())
+                if text:
+                    selector_candidates.append(text)
+
+        # A few legacy articles return a metadata-only shell (HTTP 200) even
+        # though the canonical page still exists. Preserve its title/summary
+        # instead of classifying it as an empty article.
+        metadata_candidates = []
+        if _domain_matches(domain, "baotayninh.vn"):
+            title = tree.xpath("string(//meta[@property='og:title']/@content)")
+            description = tree.xpath("string(//meta[@property='og:description']/@content)")
+            metadata = _normalize_extracted_text("\n".join(filter(None, [title, description])))
+            if description and metadata:
+                metadata_candidates.append(metadata)
+
+        fallback_candidates = structured_candidates + selector_candidates + metadata_candidates
+        fallback = max(fallback_candidates, key=len) if fallback_candidates else ""
+    except Exception:
+        fallback = ""
+
+    minimum = min_text_length_for_domain(domain)
+    valid = [text for text in (primary, fallback) if len(text) >= minimum]
+    if not valid:
+        return max((primary, fallback), key=len)
+
+    # Domain selectors avoid modal/navigation boilerplate that can be longer
+    # than the article returned by Trafilatura (notably laodong.vn).
+    if fallback and len(fallback) >= minimum:
+        return fallback
+    return max(valid, key=len)
+
+
+def resolve_javascript_cookie_challenge(req, url: str, headers: dict, proxies, impersonate_mode: str):
+    """Retry simple publisher cookie challenges such as Lao Dong's D1N page."""
+    html = req.text or ""
+    match = re.search(r'document\.cookie=["\']([A-Za-z0-9_]+)=([^"\'+;]+)', html)
+    if not match:
+        return req
+    cookie_name, cookie_value = match.groups()
+    return requests.get(
+        url,
+        proxies=proxies,
+        headers={**headers, "Referer": url},
+        cookies={cookie_name: cookie_value},
+        timeout=15,
+        impersonate=impersonate_mode,
+    )
+
 def check_layer_1(url: str):
     u = url.lower()
     for b in URL_BLACKLIST:
@@ -45,11 +241,8 @@ def check_layer_1(url: str):
     return None
 
 def check_layer_2(text: str):
-    t = unicodedata.normalize("NFC", text.lower())
-    for kw in MEDICAL_KEYWORDS:
-        if unicodedata.normalize("NFC", kw) in t:
-            return None
-    return "No medical keyword"
+    # Đã vô hiệu hóa theo yêu cầu: Giữ 100% nội dung để bảo toàn trần Recall F2
+    return None
 
 # ======================================================================
 # 2. PROXY POOL (XOAY VÒNG ROUND-ROBIN 1 HOẶC 2 PROXY)
@@ -168,13 +361,18 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                     data = api_req.json()
                     items = data.get('resultList', {}).get('result', [])
                     if items:
-                        title = items[0].get('title', '')
-                        abstract = items[0].get('abstractText', '')
-                        full_text = f"{title}\n\n{abstract}".strip() if abstract else (title.strip() if title else "")
-                        if full_text and len(full_text) > 40:
+                        item = items[0]
+                        title = item.get('title', '')
+                        abstract = item.get('abstractText', '')
+                        full_text = f"{title}\n\n{abstract}".strip() if abstract else _europe_pmc_full_text(item)
+                        source = "Europe PMC abstract/full text"
+                        if not full_text:
+                            full_text = _europe_pmc_metadata_text(item)
+                            source = "Europe PMC metadata"
+                        if full_text and len(full_text) > 10:
                             res['text'] = full_text
                             res['status'] = 'success'
-                            res['reason'] = 'Success (PubMed Europe PMC)'
+                            res['reason'] = f'Success (PubMed {source})'
                             domain_tracker.record_success(domain)
                             return res
                         else:
@@ -193,23 +391,69 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                 domain_tracker.record_failure(domain)
                 return res
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    }
+    # Fast drop cho beta.pharmacity.io (server nội bộ đã tắt vĩnh viễn)
+    if "beta.pharmacity.io" in domain or "beta.pharmacity.io" in url:
+        res['status'] = 'dropped'
+        res['dropped_at_layer'] = 1
+        res['reason'] = "Server Staging/Beta Shut Down (HTTP 403 Nginx)"
+        return res
+
+    crawl_url = url
+    impersonate_mode = "chrome120"
+    if _domain_matches(domain, "youmed.vn") and "/tin-tuc/" in url:
+        # The canonical article route intermittently triggers Cloudflare's
+        # managed challenge, while its ?amp=1 representation serves the same
+        # canonical article reliably. Keep `url` unchanged in the registry.
+        crawl_url = url.rstrip("/") + "/?amp=1"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+            'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8',
+        }
+        impersonate_mode = "safari17_0"
+    elif _domain_matches(domain, "cnkang.com"):
+        parsed = urlparse(url)
+        crawl_url = f"https://m.cnkang.com{parsed.path}"
+        if parsed.query:
+            crawl_url += f"?{parsed.query}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5',
+        }
+        impersonate_mode = "safari17_0"
+    elif _domain_matches(domain, "msdmanuals.cn"):
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5',
+        }
+        impersonate_mode = "safari17_0"
+    elif "ask.39.net/question/" in url:
+        # The old wapask endpoint now rate-limits aggressively; the canonical
+        # desktop article contains the answer and is more reliable.
+        crawl_url = url
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5',
+        }
+        impersonate_mode = "chrome124"
+    else:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
             
     for attempt in range(max_retries + 1):
         proxy_url = proxy_pool.get_proxy()
         proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
 
         try:
-            req = requests.get(url, proxies=proxies, headers=headers, timeout=15, impersonate="chrome120")
+            req = requests.get(crawl_url, proxies=proxies, headers=headers, timeout=15, impersonate=impersonate_mode)
+            req = resolve_javascript_cookie_challenge(req, crawl_url, headers, proxies, impersonate_mode)
             html = decode_html_bytes(req.content, domain, req.text)
             
-            # 1. Kiểm tra mã lỗi 404 Not Found (Trang đã bị xóa vĩnh viễn)
-            if req.status_code == 404 or "<title>404 Not Found</title>" in html:
+            # 1. Kiểm tra mã lỗi 404 / 410 (Trang đã bị xóa vĩnh viễn)
+            if req.status_code in [404, 410] or "<title>404 Not Found</title>" in html:
                 res['status'] = 'dropped'
                 res['dropped_at_layer'] = 1
-                res['reason'] = "HTTP 404 Not Found"
+                res['reason'] = f"HTTP {req.status_code} Not Found"
                 break
 
             # 2. Kiểm tra mã lỗi 429 Too Many Requests / Rate Limited
@@ -226,16 +470,38 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                 res['reason'] = "HTTP 403 Forbidden (Nginx Block)"
                 break
 
-            # 4. Kiểm tra dấu hiệu Cloudflare / Anti-bot Block / Turnstile / Captcha
+            # 4. Kiểm tra mã lỗi 5xx Server Error
+            if req.status_code >= 500:
+                res['reason'] = f"HTTP {req.status_code} Server Error"
+                if attempt < max_retries:
+                    time.sleep(2.0)
+                    continue
+                else:
+                    break
+
+            text = extract_text_with_fallback(html, domain)
+            min_text_length = min_text_length_for_domain(domain)
+            has_extractable_content = bool(text and len(text.strip()) >= min_text_length)
+
+            # 5. Kiểm tra dấu hiệu Cloudflare / Anti-bot Block / Turnstile / Captcha.
+            # Some publishers (notably YouMed) embed a Turnstile widget in a
+            # form on otherwise valid article pages, so that marker alone is
+            # only blocking when no article content can be extracted.
             is_cf = (
                 "cf-browser-verification" in html or 
                 "Just a moment..." in html or 
                 "Attention Required!" in html or 
                 "owner of this website" in html.lower() or
-                "turnstile" in html.lower() or
                 "滑动拼图" in html or
                 "拼图验证" in html or
                 "人机验证" in html or
+                (
+                    not has_extractable_content
+                    and (
+                        "cf-turnstile" in html.lower()
+                        or "challenges.cloudflare.com/turnstile" in html.lower()
+                    )
+                ) or
                 (req.status_code in [403, 503] and ("cloudflare" in html.lower() or "turnstile" in html.lower() or "waf" in html.lower()))
             )
             
@@ -247,8 +513,7 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                 else:
                     break
                 
-            text = trafilatura.extract(html, include_links=False, include_images=False)
-            if text and len(text.strip()) > 80:
+            if text and len(text.strip()) >= min_text_length:
                 lower_text = text.lower()
 
                 # Kiểm tra thông báo lỗi hệ thống ẩn bên trong nội dung văn bản
@@ -272,20 +537,20 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                     res['reason'] = "HTTP 403 Forbidden"
                     break
 
-                # Văn bản thực sự -> Kiểm tra từ khóa y tế (Layer 2)
-                l2 = check_layer_2(text)
-                if l2:
-                    res['status'] = 'dropped'
-                    res['dropped_at_layer'] = 2
-                    res['reason'] = f"{l2} (Text snippet: {text[:30]}...)"
-                else:
-                    res['text'] = text
-                    res['status'] = 'success'
-                    res['reason'] = 'Success'
+                # Văn bản thực sự hợp lệ -> LƯU THÀNH CÔNG (KHÔNG LỌC TỪ KHÓA)
+                res['text'] = text.strip()
+                res['status'] = 'success'
+                res['reason'] = 'Success'
                 break
             else:
-                # Text rỗng hoặc quá ngắn (<80 ký tự)
-                is_turnstile = "turnstile" in html.lower() or "challenge" in html.lower()
+                # Text rỗng hoặc quá ngắn (< 50 ký tự)
+                html_lower = html.lower()
+                is_turnstile = (
+                    "cf-turnstile" in html_lower
+                    or "challenges.cloudflare.com/turnstile" in html_lower
+                    or "cf-browser-verification" in html_lower
+                    or "<title>just a moment" in html_lower
+                )
                 if is_turnstile:
                     res['reason'] = "Cloudflare Turnstile"
                     if attempt < max_retries:
@@ -297,12 +562,19 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                     else:
                         break
                 else:
-                    res['reason'] = 'Empty text'
-                    if attempt < max_retries:
-                        time.sleep(1.5)
-                        continue
-                    else:
+                    if text and len(text.strip()) > 0:
+                        # Có text nhưng vẫn dưới ngưỡng tối thiểu của domain.
+                        res['status'] = 'dropped'
+                        res['dropped_at_layer'] = 2
+                        res['reason'] = f"Text too short ({len(text.strip())} chars < {min_text_length})"
                         break
+                    else:
+                        res['reason'] = 'Empty text'
+                        if attempt < max_retries:
+                            time.sleep(1.5)
+                            continue
+                        else:
+                            break
         except Exception as e:
             res['reason'] = type(e).__name__
             # Fallback: nếu proxy lỗi kết nối, thử lại trực tiếp (direct) không qua proxy
@@ -311,14 +583,12 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                     req_direct = requests.get(url, headers=headers, timeout=12, impersonate="chrome120")
                     if req_direct.status_code == 200:
                         html_d = decode_html_bytes(req_direct.content, domain, req_direct.text)
-                        text_d = trafilatura.extract(html_d, include_links=False, include_images=False)
-                        if text_d and len(text_d.strip()) > 80:
-                            l2_d = check_layer_2(text_d)
-                            if not l2_d:
-                                res['text'] = text_d
-                                res['status'] = 'success'
-                                res['reason'] = 'Success (Direct Fallback)'
-                                break
+                        text_d = extract_text_with_fallback(html_d, domain)
+                        if text_d and len(text_d.strip()) >= min_text_length_for_domain(domain):
+                            res['text'] = text_d.strip()
+                            res['status'] = 'success'
+                            res['reason'] = 'Success (Direct Fallback)'
+                            break
                 except:
                     pass
             if attempt < max_retries:
@@ -370,8 +640,18 @@ def get_already_crawled_ids(output_dir):
     crawled_ids = set()
     for f in files:
         try:
-            df = pd.read_parquet(f, columns=['id', 'status'])
-            crawled_ids.update(df[df['status'].isin(['success', 'dropped'])]['id'].tolist())
+            df = pd.read_parquet(f)
+            status = df['status'].fillna('').astype(str)
+            reason = df.get('reason', pd.Series('', index=df.index)).fillna('').astype(str)
+            unavailable = reason.str.contains(
+                r'404|410|not found|staging/beta shut down', case=False, regex=True
+            )
+            safe_blacklist = reason.str.contains(r'blacklist', case=False, regex=True) & ~reason.str.contains(
+                r'blacklist:\s*(?:shopee|lazada|tiki)', case=False, regex=True
+            )
+            permanent_drop = status.eq('dropped') & (unavailable | safe_blacklist)
+            done = status.eq('success') | permanent_drop
+            crawled_ids.update(df.loc[done, 'id'].tolist())
         except: pass
     return crawled_ids
 
@@ -453,10 +733,21 @@ async def main_async(args, proxy_pool, domain_tracker):
             
             # Chỉ lưu những URL thành công hoặc được phân loại là rác (dropped)
             df_valid = df_res[df_res['status'].isin(['success', 'dropped'])]
+            df_errors = df_res[df_res['status'].eq('error')]
             succ = (df_res['status'] == 'success').sum()
 
             if len(df_valid) > 0: 
                 df_valid.to_parquet(out_file, index=False)
+            if len(df_errors) > 0:
+                # Diagnostic-only ledger: nested files are ignored by the
+                # root-level sync and already-crawled checks, so URLs retry.
+                error_dir = os.path.join(args.output_dir, "errors")
+                os.makedirs(error_dir, exist_ok=True)
+                error_file = os.path.join(
+                    error_dir,
+                    f"error_part_{part_no:04d}_{time.time_ns()}.parquet",
+                )
+                df_errors.to_parquet(error_file, index=False)
                 
             total_success += succ
             total_processed += len(df_res)

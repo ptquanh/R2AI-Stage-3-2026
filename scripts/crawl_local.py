@@ -35,7 +35,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 # ======================================================================
 URL_BLACKLIST = [
     "/rao-vat/", "/san-pham/", "/gio-hang/", "/mua-ban/", "/cart/",
-    "/checkout/", "/shop/", "/store/", "shopee", "lazada", "tiki"
+    "/checkout/", "/shop/", "/store/"
 ]
 
 MEDICAL_KEYWORDS = [
@@ -578,7 +578,7 @@ def fetch_one_sync(row: dict, proxy_mgr: ProxyManager, max_retries: int, domain_
                 html = worker.driver.page_source
                 text = trafilatura.extract(html, include_links=False, include_images=False)
 
-            if text and len(text.strip()) > 200:
+            if text and len(text.strip()) >= 10:
                 lower_text = text.lower()
                 if "too many requests" in lower_text or "rate limit" in lower_text:
                     res['reason'] = "429 Too Many Requests"
@@ -671,9 +671,16 @@ def get_already_crawled_ids(output_dir: str):
     crawled_ids = set()
     for f in files:
         try:
-            df = pd.read_parquet(f, columns=['id', 'status'])
-            succ_df = df[df['status'].isin(['success', 'dropped'])]
-            crawled_ids.update(succ_df['id'].tolist())
+            df = pd.read_parquet(f)
+            status = df['status'].fillna('').astype(str)
+            reason = df.get('reason', pd.Series('', index=df.index)).fillna('').astype(str)
+            unavailable = reason.str.contains(r'404|410|not found', case=False, regex=True)
+            safe_blacklist = reason.str.contains(r'blacklist', case=False, regex=True) & ~reason.str.contains(
+                r'blacklist:\s*(?:shopee|lazada|tiki)', case=False, regex=True
+            )
+            permanent_drop = status.eq('dropped') & (unavailable | safe_blacklist)
+            done = status.eq('success') | permanent_drop
+            crawled_ids.update(df.loc[done, 'id'].tolist())
         except Exception:
             pass
     return crawled_ids
@@ -768,6 +775,7 @@ async def main_async(args):
 
             df_res = pd.DataFrame(batch_results)
             df_valid = df_res[df_res['status'].isin(['success', 'dropped'])]
+            df_errors = df_res[df_res['status'].eq('error')]
             succ = (df_res['status'] == 'success').sum()
 
             # Chỉ lưu file nếu có ít nhất 1 bài thành công hoặc dropped
@@ -775,6 +783,15 @@ async def main_async(args):
                 df_valid.to_parquet(out_file, index=False)
             else:
                 print(f"\n⚠️ [Batch {part_no:04d}] Không có URL nào hợp lệ (Toàn bộ 429/Error). Không lưu file này để cào lại sau.")
+
+            if len(df_errors) > 0:
+                error_dir = os.path.join(args.output_dir, "errors")
+                os.makedirs(error_dir, exist_ok=True)
+                error_file = os.path.join(
+                    error_dir,
+                    f"error_part_{part_no:04d}_{time.time_ns()}.parquet",
+                )
+                df_errors.to_parquet(error_file, index=False)
 
             total_success += succ
             total_processed += len(df_res)

@@ -10,6 +10,7 @@ import scipy.sparse as sp
 from src.retrieval.base import Candidate
 from src.retrieval.fusion import BaseFusionStrategy, LinearFusionStrategy, RRFFusionStrategy
 from src.retrieval.index_repository import IndexRepository, IndexShard
+from src.retrieval.faiss_searcher import FAISSSearcher
 
 logger = logging.getLogger(__name__)
 

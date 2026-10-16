@@ -77,7 +77,9 @@ class BGEM3QueryEncoder(BaseQueryEncoder):
         self,
         queries_vi: List[str],
         queries_zh: Optional[List[str]] = None,
+        queries_en: Optional[List[str]] = None,
         zh_weight: float = 1.0,
+        en_weight: float = 0.5,
         batch_size: int = 8,
         max_length: int = 1024
     ) -> sp.csr_matrix:
@@ -90,8 +92,9 @@ class BGEM3QueryEncoder(BaseQueryEncoder):
             return_sparse=True,
             return_colbert_vecs=False,
         )
-        lexical_vi = enc_vi["lexical_weights"]
+        fused_lexical = [dict(w) for w in enc_vi["lexical_weights"]]
 
+        # Merge Chinese lexical weights
         if queries_zh is not None and any(bool(q) for q in queries_zh):
             enc_zh = self._model.encode(
                 queries_zh,
@@ -101,17 +104,25 @@ class BGEM3QueryEncoder(BaseQueryEncoder):
                 return_sparse=True,
                 return_colbert_vecs=False,
             )
-            lexical_zh = enc_zh["lexical_weights"]
-
-            fused_lexical = []
-            for w_v, w_z in zip(lexical_vi, lexical_zh):
-                merged = dict(w_v)
+            for merged, w_z in zip(fused_lexical, enc_zh["lexical_weights"]):
                 for tok, val in w_z.items():
                     merged[tok] = max(merged.get(tok, 0.0), float(val) * zh_weight)
-                fused_lexical.append(merged)
-            return self.build_query_sparse_matrix(fused_lexical)
 
-        return self.build_query_sparse_matrix(lexical_vi)
+        # Merge English lexical weights
+        if queries_en is not None and any(bool(q) for q in queries_en):
+            enc_en = self._model.encode(
+                queries_en,
+                batch_size=batch_size,
+                max_length=max_length,
+                return_dense=False,
+                return_sparse=True,
+                return_colbert_vecs=False,
+            )
+            for merged, w_e in zip(fused_lexical, enc_en["lexical_weights"]):
+                for tok, val in w_e.items():
+                    merged[tok] = max(merged.get(tok, 0.0), float(val) * en_weight)
+
+        return self.build_query_sparse_matrix(fused_lexical)
 
     def unload(self) -> None:
         if self._model is not None:

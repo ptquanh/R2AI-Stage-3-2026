@@ -1,5 +1,6 @@
 # Data & Large Parquet files
 data/*.parquet
+data/*.bak
 data/raw/*
 !data/raw/btc_provided
 !data/raw/btc_provided/**

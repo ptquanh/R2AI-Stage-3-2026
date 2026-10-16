@@ -13,6 +13,7 @@ class QueryBundle:
     id: int
     text_vi: str
     text_zh: Optional[str] = None
+    text_en: Optional[str] = None
 
 
 @dataclass
@@ -58,7 +59,9 @@ class BaseQueryEncoder(ABC):
         self,
         queries_vi: List[str],
         queries_zh: Optional[List[str]] = None,
+        queries_en: Optional[List[str]] = None,
         zh_weight: float = 1.0,
+        en_weight: float = 0.5,
         batch_size: int = 8,
         max_length: int = 1024
     ) -> sp.csr_matrix:

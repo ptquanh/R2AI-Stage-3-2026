@@ -22,7 +22,7 @@ class SubmissionPipeline:
     def __init__(
         self,
         encoder: BaseQueryEncoder,
-        searcher: VectorSearcher,
+        searcher: Any,
         index_repository: IndexRepository,
         exporter: SubmissionExporter,
         reranker: Optional[BaseReranker] = None
@@ -34,29 +34,35 @@ class SubmissionPipeline:
         self.reranker = reranker
 
     @staticmethod
-    def load_queries(query_path: str) -> List[QueryBundle]:
-        """Loads search queries from parquet and auto-merges translated Chinese if present."""
+    def load_queries(query_path: str, enable_multilingual: bool = True) -> List[QueryBundle]:
+        """Loads search queries from parquet and auto-merges translated Chinese and English if present and enabled."""
         df_q = pd.read_parquet(query_path)
 
-        if "query_zh" not in df_q.columns and os.path.exists("data/raw/btc_provided/query_translated.parquet"):
+        if enable_multilingual and os.path.exists("data/raw/btc_provided/query_translated.parquet"):
             try:
                 df_trans = pd.read_parquet("data/raw/btc_provided/query_translated.parquet")
-                if set(df_q["id"]).issubset(set(df_trans["id"])):
-                    df_q = df_q.merge(df_trans[["id", "query_zh"]], on="id", how="left")
-                    logger.info("Auto-merged query_zh translations for multilingual lexical retrieval.")
+                merge_cols = [c for c in ["query_zh", "query_en"] if c in df_trans.columns and c not in df_q.columns]
+                if merge_cols and set(df_q["id"]).issubset(set(df_trans["id"])):
+                    df_q = df_q.merge(df_trans[["id"] + merge_cols], on="id", how="left")
+                    logger.info(f"Auto-merged multilingual translations {merge_cols} for retrieval.")
             except Exception as e:
-                logger.warning(f"Failed to merge query_zh: {e}")
+                logger.warning(f"Failed to merge translations: {e}")
 
         queries: List[QueryBundle] = []
         has_zh = "query_zh" in df_q.columns and (df_q["query_zh"] != "").any()
+        has_en = "query_en" in df_q.columns and (df_q["query_en"] != "").any()
 
         for row in df_q.itertuples(index=False):
             q_id = int(row.id)
             q_vi = str(getattr(row, "query", ""))
             q_zh = str(getattr(row, "query_zh", "")) if has_zh else None
-            queries.append(QueryBundle(id=q_id, text_vi=q_vi, text_zh=q_zh))
+            q_en = str(getattr(row, "query_en", "")) if has_en else None
+            queries.append(QueryBundle(id=q_id, text_vi=q_vi, text_zh=q_zh, text_en=q_en))
 
-        logger.info(f"Loaded {len(queries)} queries. Multilingual Chinese: {'ENABLED' if has_zh else 'DISABLED'}")
+        logger.info(
+            f"Loaded {len(queries)} queries. Multilingual: "
+            f"Chinese={'ENABLED' if has_zh else 'DISABLED'}, English={'ENABLED' if has_en else 'DISABLED'}"
+        )
         return queries
 
     def execute(
@@ -66,6 +72,7 @@ class SubmissionPipeline:
         mode: str = "hybrid",
         fusion_type: str = "rrf",
         zh_weight: float = 1.0,
+        en_weight: float = 0.5,
         rrf_k: int = 60,
         top_docs: int = 100,
         top_chunks: int = 98,
@@ -83,6 +90,8 @@ class SubmissionPipeline:
         queries_vi = [q.text_vi for q in queries]
         has_zh = any(bool(q.text_zh and q.text_zh.strip()) for q in queries)
         queries_zh = [q.text_zh or "" for q in queries] if has_zh else None
+        has_en = any(bool(q.text_en and q.text_en.strip()) for q in queries)
+        queries_en = [q.text_en or "" for q in queries] if has_en else None
 
         # 1. Encode queries
         logger.info(f"=== Encoding queries (Mode: {mode}) ===")
@@ -91,23 +100,58 @@ class SubmissionPipeline:
         need_sparse = mode in ["sparse", "hybrid"]
 
         q_vecs = None
-        if need_dense:
-            logger.info("Encoding Dense vectors (Vietnamese)...")
-            q_vecs = self.encoder.encode_dense(queries_vi)
-
         q_sparse = None
-        if need_sparse:
-            logger.info(f"Encoding Sparse lexical vectors (Multilingual zh_weight={zh_weight})...")
-            q_sparse = self.encoder.encode_sparse(
-                queries_vi=queries_vi,
-                queries_zh=queries_zh,
-                zh_weight=zh_weight
-            )
+
+        cache_file = os.path.join("data", "indices", "new_dataset", ".cache", "query_encodings_1200.pkl")
+        loaded_from_cache = False
+
+        if os.path.exists(cache_file) and len(queries) == 1200:
+            try:
+                import pickle
+                logger.info(f"⚡ Found cached trilingual query encodings at {cache_file}! Loading instantly...")
+                with open(cache_file, "rb") as f:
+                    cached_data = pickle.load(f)
+
+                if need_dense:
+                    q_vecs = cached_data["dense_q"]
+
+                if need_sparse:
+                    fused_lexical = []
+                    for i in range(len(queries)):
+                        merged = dict(cached_data["lex_vi"][i])
+                        if has_zh and "lex_zh" in cached_data:
+                            for tok, val in cached_data["lex_zh"][i].items():
+                                merged[tok] = max(merged.get(tok, 0.0), float(val) * zh_weight)
+                        if has_en and "lex_en" in cached_data:
+                            for tok, val in cached_data["lex_en"][i].items():
+                                merged[tok] = max(merged.get(tok, 0.0), float(val) * en_weight)
+                        fused_lexical.append(merged)
+                    q_sparse = self.encoder.build_query_sparse_matrix(fused_lexical)
+
+                loaded_from_cache = True
+                logger.info("Successfully loaded query encodings from cache without loading FlagEmbedding/PyTorch into memory!")
+            except Exception as e:
+                logger.warning(f"Failed to load cached query encodings: {e}. Falling back to dynamic encoding...")
+
+        if not loaded_from_cache:
+            if need_dense:
+                logger.info("Encoding Dense vectors (Vietnamese)...")
+                q_vecs = self.encoder.encode_dense(queries_vi)
+
+            if need_sparse:
+                logger.info(f"Encoding Sparse lexical vectors (Multilingual zh_w={zh_weight}, en_w={en_weight})...")
+                q_sparse = self.encoder.encode_sparse(
+                    queries_vi=queries_vi,
+                    queries_zh=queries_zh,
+                    queries_en=queries_en,
+                    zh_weight=zh_weight,
+                    en_weight=en_weight
+                )
+
+            # Unload encoder to release GPU memory for subsequent reranker
+            self.encoder.unload()
 
         logger.info(f"Query encoding finished in {time.time() - t_enc:.2f}s.")
-
-        # Unload encoder to release GPU memory for subsequent reranker
-        self.encoder.unload()
 
         # 2. Discover shards
         shards = self.index_repo.discover_shards()

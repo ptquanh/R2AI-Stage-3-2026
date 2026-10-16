@@ -22,3 +22,4 @@ psutil
 FlagEmbedding>=1.4.0
 accelerate>=0.28.0
 scipy>=1.10.0
+faiss-cpu
