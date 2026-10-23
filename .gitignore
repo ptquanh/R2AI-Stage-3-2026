@@ -23,6 +23,24 @@ repos/
 # HuggingFace & Caches
 hf_cache/
 .cache/
+.pytest_cache/
+data/model_cache/
+
+# Generated analyses and experiment workspaces
+data/audits/
+data/exp*/
+data/kaggle_inputs/
+data/query_translations/
+data/qwen3*/
+data/reference/
+*.npy
+*.log
+tmp/
+tmp_*/
+submission*_package/
+
+# Recoverable local archive for retired one-off code
+archive/one_off_code_*/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

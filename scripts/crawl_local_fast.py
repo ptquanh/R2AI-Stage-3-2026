@@ -20,7 +20,8 @@ from tqdm.asyncio import tqdm
 from curl_cffi import requests
 import concurrent.futures
 
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # ======================================================================
 # 1. BỘ LỌC NỘI DUNG (URL BLACKLIST & MEDICAL KEYWORDS)
@@ -381,22 +382,18 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
                             res['reason'] = "No abstract in PubMed article"
                             return res
                     else:
-                        res['status'] = 'dropped'
-                        res['dropped_at_layer'] = 1
-                        res['reason'] = "PMID not found in Europe PMC"
-                        return res
+                        # Secondary-index absence is not source deletion.
+                        # Continue to the original PubMed URL below.
+                        res['reason'] = "PMID not found in Europe PMC (retryable)"
             except Exception as e:
                 res['status'] = 'error'
                 res['reason'] = f"Europe PMC error: {str(e)[:40]}"
                 domain_tracker.record_failure(domain)
                 return res
 
-    # Fast drop cho beta.pharmacity.io (server nội bộ đã tắt vĩnh viễn)
-    if "beta.pharmacity.io" in domain or "beta.pharmacity.io" in url:
-        res['status'] = 'dropped'
-        res['dropped_at_layer'] = 1
-        res['reason'] = "Server Staging/Beta Shut Down (HTTP 403 Nginx)"
-        return res
+    # Do not permanently drop a publisher merely because its staging hostname
+    # was blocked previously. Exact-link API recovery is available separately
+    # in recover_pharmacity_api.py; this generic path still probes the origin.
 
     crawl_url = url
     impersonate_mode = "chrome120"
@@ -489,6 +486,8 @@ def fetch_one_sync(row: dict, proxy_pool: FastProxyPool, max_retries: int, domai
             # only blocking when no article content can be extracted.
             is_cf = (
                 "cf-browser-verification" in html or 
+                "cookies must be enabled" in html.lower() or
+                "www error blocked diagnostic" in html.lower() or
                 "Just a moment..." in html or 
                 "Attention Required!" in html or 
                 "owner of this website" in html.lower() or
@@ -643,8 +642,8 @@ def get_already_crawled_ids(output_dir):
             df = pd.read_parquet(f)
             status = df['status'].fillna('').astype(str)
             reason = df.get('reason', pd.Series('', index=df.index)).fillna('').astype(str)
-            unavailable = reason.str.contains(
-                r'404|410|not found|staging/beta shut down', case=False, regex=True
+            unavailable = reason.str.match(
+                r'^HTTP\s+(?:404|410)\s+Not Found$', case=False
             )
             safe_blacklist = reason.str.contains(r'blacklist', case=False, regex=True) & ~reason.str.contains(
                 r'blacklist:\s*(?:shopee|lazada|tiki)', case=False, regex=True
