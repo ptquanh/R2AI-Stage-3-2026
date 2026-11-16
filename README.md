@@ -40,3 +40,15 @@ python -m src.release.cli --config configs/release_exp143.json verify
 python -m src.release.cli --config configs/release_exp143.json build-cache
 python -m uvicorn demo.medical_retrieval.app:app --host 127.0.0.1 --port 8000
 ```
+
+## Dữ liệu & Index (Hugging Face)
+
+Bộ dữ liệu, index (`new_dataset/index`, `new_dataset/qwen3-0.6b`, `bm25_document`), `embedded_samples.parquet`, `replay.sqlite` và `concept_graph_v1` được lưu trữ công khai tại:
+
+- **Hugging Face Dataset:** https://huggingface.co/datasets/ptquanh/r2ai-stage3-2026-data
+
+Tải về thư mục gốc của repository bằng `hf` CLI:
+
+```powershell
+hf download ptquanh/r2ai-stage3-2026-data --repo-type dataset --local-dir .
+```
