@@ -1,0 +1,10 @@
+# BGE-M3 ColBERT late-interaction shortlist — Kaggle 04/11/2026
+
+Trạng thái: **full Kaggle hoàn tất; không tạo submission BTC**. Không có qrels hoặc điểm private. Đây là phép đo tính khả thi và độ khác biệt ranking, không phải relevance evaluation.
+
+- Input: query BTC 1.200 câu, 60.000 query-doc, tối đa 2 source windows/doc từ P2A, tổng 107.686 cặp query-passage. Nguồn `data/kaggle_inputs/colbert_full_20261103/colbert_full_pairs.parquet`; model `BAAI/bge-m3`, revision `5617a9f61b028005a4858fdac845db406aefb181`, multi-vector score (`return_colbert_vecs=True`, `colbert_score`).
+- Pilot: 60 query/5.446 pair, đủ output, 11,29 pair/giây. Full: 1.200 query/107.686 pair, 9.477,9 giây, 11,36 pair/giây. ZIP full `data/kaggle_outputs/colbert_full_20261104/colbert_full_outputs.zip`. [Kaggle full](https://www.kaggle.com/code/ptquanh/r2ai-bge-m3-colbert-full-20261103).
+- `python -m scripts.audit_colbert_kaggle ...` kiểm tra ZIP CRC, SHA input/output, row identity, query coverage, không duplicate/NaN: **PASS**. Điểm min/median/max 0,2557/0,6053/0,8698. Top10 overlap giữa shortlist gốc và ColBERT trung bình 4,66/10; chỉ đo thay đổi thứ hạng.
+- So với doc membership của `submission_private01_exp143_replay.zip`: trung bình 1,579 doc mới trong top50/query; 29/1.200 query có doc mới trong top5, 88/1.200 trong top10; 2/1.200 có score doc mới vượt best doc hiện hữu. Nguồn audit: `python -m scripts.analyze_colbert_full`.
+- Kiểm tra nội dung hai ca doc mới vượt best doc cũ đều sai trọng tâm lâm sàng: q855 hỏi chấn thương cột sống D12 và mang thai, doc mới nói về mang thai sau phá thai; q98 hỏi Biolac và đau bụng/đi cầu, doc mới nói về đau dạ dày do diclofenac. Một số doc mới khác chỉ khớp triệu chứng chung hoặc tiếng Trung, không đủ căn cứ promote.
+- Kết luận: **không tiêu slot private** cho ColBERT-only trên shortlist này. Rerank không đổi membership thì Docs F2 không đổi; bổ sung doc mới có độ chính xác không được chứng minh. Không dùng similarity score làm proxy gold labels. Nếu muốn thử lại sau hạn, cần candidate generation mở rộng đáng kể và đánh giá thủ công/ngoài mẫu.

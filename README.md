@@ -15,7 +15,7 @@ Repository này chứa pipeline crawl, index, retrieval và sinh submission cho 
 - BM25 → dense passage cascade: `notebooks/14_bm25_dense_passage_cascade_kaggle.ipynb`
 - Full-corpus embedding: `notebooks/12_qwen3_embedding_full_kaggle.ipynb`
 - BGE-M3 chunk/index build: `notebooks/10_semantic_chunk_bgem3_kaggle.ipynb`
-- Submission control: `scripts/generate_best_submission.py`
+- Release control: `configs/release_exp143.json` + `python -m src.release.cli verify`
 - Validation: `scripts/validate_submission.py`, `scripts/validate_evidence_submission.py`
 
 ## Nguyên tắc tổ chức
@@ -28,3 +28,15 @@ Repository này chứa pipeline crawl, index, retrieval và sinh submission cho 
 - `archive/`: mã one-off đã nghỉ hưu, chỉ giữ để truy vết/khôi phục.
 
 Không xóa hoặc rebuild `data/raw/` và `data/indices/` nếu chưa kiểm tra coverage, `doc_id` và backup.
+
+## Release BTC 03/11/2026
+
+Control hiện hành là **Exp143**. Default cũ của `scripts/generate_best_submission.py`
+không còn là best config. Hồ sơ, UI và hướng dẫn tái hiện nằm tại
+[`deliverables/stage3_20261104/README.md`](deliverables/stage3_20261104/README.md).
+
+```powershell
+python -m src.release.cli --config configs/release_exp143.json verify
+python -m src.release.cli --config configs/release_exp143.json build-cache
+python -m uvicorn demo.medical_retrieval.app:app --host 127.0.0.1 --port 8000
+```

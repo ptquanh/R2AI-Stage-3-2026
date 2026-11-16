@@ -6,16 +6,22 @@ data/raw/*
 !data/raw/btc_provided/**
 data/processed/*
 data/indices/*
+data/kaggle_outputs/*
+data/kaggle_upload/*
+deliverables/*
 !data/**/.gitkeep
 *.jsonl
 *.xml
 *.pkl
 *.db
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Submissions & heavy artifacts
 submission*.*
 *.zip
+p1_annotation_labeled.csv
 
 # Nested Repositories
 repos/
@@ -24,6 +30,7 @@ repos/
 hf_cache/
 .cache/
 .pytest_cache/
+data/cache/
 data/model_cache/
 
 # Generated analyses and experiment workspaces
@@ -31,10 +38,13 @@ data/audits/
 data/exp*/
 data/kaggle_inputs/
 data/query_translations/
+data/query_specs/
 data/qwen3*/
 data/reference/
 *.npy
 *.log
+*.drawio.bkp
+.chart-data-*/
 tmp/
 tmp_*/
 submission*_package/

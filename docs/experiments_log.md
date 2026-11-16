@@ -1,6 +1,20 @@
 # Nhật ký Thử nghiệm & Benchmark (Experiment Logs)
 
+> **Private — cập nhật 03/11/2026:** replay Exp143 đã build/audit **PASS** trên 1.200 query; ZIP 94.478.622 bytes, predictions bằng champion. Người dùng xác nhận **đã nộp 1/5 lượt**, chưa có portal receipt trong hồ sơ. **Private không công bố điểm trước khi kết thúc** (đính chính thông tin 02/11). Hạn **23:59 ngày 04/11 (VN)** cho cả submission và bộ thuyết minh BTC; ưu tiên hồ sơ, UI, slide theo [plan hiện hành](r2ai_score_improvement_plan.md). File/hash tại [Private01](experiments_log/private01_exp143_replay.md); không trộn điểm public và private.
+
+> Cập nhật 2026-10-27: Exp143 hiện đạt Final cao nhất **0.3190**, Docs/Chunks F2 **0.3731/0.2648**. So với Exp142, Docs không đổi; thêm short spans tăng chunk recall `+0.0030`, làm precision giảm `-0.0022`; F2 tăng nhẹ `+0.0009`. Xem [Exp143](experiments_log/exp143_p2a_long_chunks_add3.md).
+
+> Exp140 keep80 đạt Final **0.3154**, thấp hơn Exp139 keep90 `0.0007`; chunk precision cao hơn nhưng recall/F2 thấp hơn. Exp139 hiện là fallback; dừng cutoff sweep Qwen.
+
+> Top160 giữ chunks byte-identical và chỉ thay membership docs; chunk metrics bất biến, nên gain được quy cho document filtering.
+
+> [Joint Qwen top130 + P2a keep90](experiments_log/joint_qwen_top130_p2a_keep90.md) đạt Final 0.3141: Docs F2 tốt nhất `0.3731`, nhưng Chunks F2 giảm còn `0.2551`. Không promote nguyên artifact; dùng nó làm nguồn best-doc axis và khôi phục original chunks.
+
+> [Best-axis docs joint + chunks top130](experiments_log/best_axis_docs_joint_chunks_top130.md) đạt đúng **0.3148** (Docs/Chunks F2 `0.3731/0.2565`) và là reference control trước evaluator hiện hành. Exp139 keep90 đạt **0.3161**; Exp142 đạt 0.3185; Exp143 hiện best với 0.3190. Exp140 keep80 đạt 0.3154; dừng tune cutoff.
+
 Tài liệu này lưu trữ kết quả của các lần submit và thử nghiệm mô hình, nhằm theo dõi sự cải thiện (hoặc sụt giảm) hiệu năng qua từng thay đổi trong Pipeline. Chúng ta sẽ dùng điểm Baseline của BTC làm mốc đối chiếu (Mốc 0).
+
+> Trạng thái 2026-10-23: **control theo evaluator mới là Exp122 (2), Final 0.3075**. Exp138 nhận Final 0.2031, Docs F2 0.3586, Chunks F2 0.0477; loại treatment. Các nhãn “champion”/baseline trong bảng lịch sử không tự áp dụng cho rule LCS hai phía. Exp136 có cả ba chunk metrics trùng control mới; rút lại quy kết cũ rằng doc/chunk mismatch giải thích chunk regression. Xem [kế hoạch hiện hành](r2ai_score_improvement_plan.md).
 
 ## 1. Bảng Xếp hạng Nội bộ (Leaderboard)
 
@@ -232,4 +246,17 @@ Tài liệu này lưu trữ kết quả của các lần submit và thử nghi�
 | **127** | [Exp 127: Exp121 + 10 ranked full parents](experiments_log/exp127_exp121_add10_ranked_parents.md) | Không nộp sau khi Exp129 chứng minh giảm additions làm mất recall/F2 | Không nộp |
 | **128** | [Exp 128: Exp121 + 5 ranked full parents](experiments_log/exp128_exp121_add5_ranked_parents.md) | Không nộp sau khi Exp129 chứng minh giảm additions làm mất recall/F2 | Không nộp |
 | **129** | [Exp 129: Exp121 + 15 ranked full parents](experiments_log/exp129_exp121_add15_ranked_parents.md) | Precision tăng nhưng recall giảm mạnh hơn Exp122; dừng ladder thu hẹp parent | 0.3500 |
-| **130** | [Exp 130: multilingual BM25 → exact dense → passage cascade](experiments_log/exp130_bm25_dense_passage_cascade.md) | Chuyển sang chạy local; phải sửa translation EN/ZH trước khi chấm kiến trúc | Đang triển khai |
+| **130** | [Exp 130: multilingual BM25 → exact dense → passage cascade](experiments_log/exp130_bm25_dense_passage_cascade.md) | Notebook full 1.200 query có resume đã chuẩn bị; Kaggle chưa chạy | Chờ chạy Kaggle |
+| **136** | [Exp 136: Production translation dense-RRF docs-only](experiments_log/exp136_translation_production_v1.md) | 1.200 query; thay 66 docs tail/query dù gọi là docs-only; chunks payload giữ nguyên nhưng nhiều chunk-doc pair mất doc membership | **0.2813** — regression lớn; không promote |
+| **137** | [Exp 137: Translation chunk RRF, docs fixed to Exp122](experiments_log/exp137_translation_chunks_fixed_docs.md) | Docs khớp Exp122; chunks từ raw indexed spans ngắn hơn nhiều và thay đổi segmentation | **0.2940** — Chunk F2 giảm mạnh; không promote, chưa quy được cho translation |
+| **122 re-eval** | [Exp 122: Exp121 + 19 missing-doc full parents](experiments_log/exp122_exp121_add19_missing_doc_parents.md) | Nộp lại cùng ZIP/hash sau khi BTC đổi chunk matching; docs giữ nguyên, chunk metrics được tính lại. Đây là control hiện hành; điểm cũ là legacy. | **0.3075** |
+| **135 re-eval** | [Exp 135: Top 50 anchored windows, width 896](experiments_log/exp135_top50_w896.md) | Cùng docs với Exp122; chunk treatment kém control mới (Chunks F2 `-0,0262`); không promote. | **0.2944** |
+| **134 re-eval** | [Exp 134: Top 60 anchored windows, width 768](experiments_log/exp134_top60_w768.md) | Cùng docs với Exp122; chunk treatment kém control mới (Chunks F2 `-0,0324`); cùng Exp135 bác bỏ fixed-count anchored windows. | **0.2913** |
+| **138** | [Exp 138: Sentence-aligned passages, docs fixed to Exp122](experiments_log/exp138_sentence_passages_fixed_docs.md) | Docs F2/P/R 0.3586/0.1816/0.6114; Chunks F2/P/R 0.0477/0.0365/0.0644. Chunk owners đổi toàn bộ 1.200 queries; lỗi bỏ câu dài/không tách dấu câu Trung. Loại treatment. | **0.2031** |
+| **139** | [Exp 139: Qwen4B original chunks, keep90](experiments_log/exp139_qwen4b_chunks_keep90.md) | Giữ nguyên docs; top 90% chunk theo Qwen4B, bảo toàn 1.689 chunk quá dài. Docs F2 giữ 0.3731; Chunks F2 tăng `+0.0026`, precision tăng `+0.0144`, recall giảm `-0.0058` so với reference. | **0.3161** |
+| **140** | [Exp 140: Qwen4B original chunks, keep80](experiments_log/exp139_qwen4b_chunks_keep90.md) | Dùng lại score cache Exp139; Docs giữ nguyên. So với keep90: precision `+0.0144`, recall `-0.0110`, Chunks F2 `-0.0013`; không promote. | **0.3154** |
+| **141** | [Exp 141: Qwen top130 docs, keep90 chunks](experiments_log/exp141_qwen_top130_docs_keep90_chunks.md) | Precision tăng nhưng recall/F2 giảm; chunks bất biến. Loại nhánh bỏ owner floor | **0.3094** |
+| **142** | [Exp 142: Add 5 missing-owner parents/query](experiments_log/exp142_missing_owners_add5_parents.md) | Từng là best; giờ làm fallback của Exp143. Chunk F2/recall tăng so với Exp139 | **0.3185** |
+| **143** | [Exp 143: Add P2a spans to long chunks](experiments_log/exp143_p2a_long_chunks_add3.md) | Thắng nhẹ Exp142: chunk F2 `+0.0009`, recall `+0.0030`; dừng sweep span | **0.3190** 🏆 |
+| **144** | [Exp 144: QuerySpec/BM25 → exact BGE-M3 docs rerank](experiments_log/exp144_queryspec_bm25_dense_docs.md) | Pool 1.472.936 pairs và input 10,9 MB đã audit; rerank bằng query VI gốc, gate 401 QuerySpec, giữ chunks Exp143 | Sẵn sàng chạy Kaggle |
+| **ColBERT full** | [BGE-M3 multi-vector shortlist](experiments_log/colbert_bgem3_full_20261104.md) | Kaggle 1.200 query/107.686 passage, audit PASS; chỉ 29 query có doc mới trong top5 Exp143 và mẫu top-score sai clinical intent | Không nộp BTC |

@@ -30,3 +30,13 @@ Builder add25 tạo ZIP `104.319.110` bytes nên bị loại; JSON/ZIP add25 đ�
 - Chunks Precision / Recall: `0,2512 / 0,4682` (`-0,0156 / +0,0508`).
 
 19 additions/query tăng Chunk F2 rõ rệt nhưng precision tradeoff lớn hơn Exp121. Giữ Exp122 làm champion; kiểm tra thêm lựa chọn document/addition và tận dụng archive budget trước khi cố định số lượng additions tiếp theo.
+
+## Chấm lại theo evaluator cập nhật ngày 2026-10-23
+
+BTC thông báo từ lần chấm mới, chunk chỉ được tính khớp khi LCS đạt ít nhất 40% độ dài **cả chunk đáp án lẫn chunk dự đoán**. Nộp lại đúng ZIP trên, không thay đổi artifact (SHA-256 vẫn là `8c7f221cfafa401dfb5435df7da06464999c4b60594e69bc7726bb4ffb379886`), cho kết quả:
+
+```json
+{"FINAL_SCORE":0.3075,"DOCS_F2MACRO":0.3586,"CHUNKS_F2MACRO":0.2565,"DOCS_PRECISION":0.1816,"DOCS_RECALL":0.6114,"CHUNKS_PRECISION":0.1957,"CHUNKS_RECALL":0.3427}
+```
+
+Docs metrics không đổi; so với lần chấm cũ, Chunks F2 giảm `0.0881`, precision giảm `0.0555`, recall giảm `0.1255`. Vì artifact giống hệt, đây là mốc control theo evaluator mới, không phải thay đổi retrieval. Từ đây không so trực tiếp điểm chunk giữa các lần chấm dùng hai evaluator; baseline BTC `0.3764` và các điểm cũ cần được xem là mốc lịch sử cho tới khi được chấm lại theo công thức mới.

@@ -25,4 +25,6 @@ Use the audited multilingual BM25 cache as candidate generation, then exact BGE-
 
 ## Execution and scoring
 
-Run with `QUERY_LIMIT=120` only to estimate throughput/ETA; a pilot does not create a submission. For a scored artifact set `QUERY_LIMIT=None` and run all queries. Compare official Docs/Chunks F2 separately to Exp122; the experiment changes both document ordering/membership and passage selection, so aggregate score alone cannot identify which stage helped. Score pending; Kaggle execution and manual submission are user-operated.
+Notebook is set to `QUERY_LIMIT=None` for all 1,200 queries. It writes an atomic checkpoint every 25 queries and resumes only when input ZIP, index manifest, model/revision, query IDs and run parameters match. Static notebook JSON/Python syntax validation passed; the private index/input attachments and T4 run are still required. No Kaggle credentials or Kaggle UI runtime were available in this workspace, so the notebook has not been uploaded or launched here.
+
+Compare official Docs/Chunks F2 separately to the current control (Exp139 after the matching-rule update); the experiment changes document retrieval/scoring and passage selection together, so aggregate score alone cannot identify which stage helped. Score pending; Kaggle execution and manual submission are user-operated.
